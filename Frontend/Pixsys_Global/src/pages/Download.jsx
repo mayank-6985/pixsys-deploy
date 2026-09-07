@@ -159,18 +159,48 @@ const Downloads = () => {
     return `Product ID: ${productId}`;
   };
 
-  const filteredDownloads = useMemo(() => {
-    if (
-      !selectedCat &&
-      !selectedSub &&
-      !selectedTag &&
-      !selectedProd &&
-      selectedTypes.length === 0
-    ) {
-      return allDownloads;
-    }
+  // const filteredDownloads = useMemo(() => {
+  //   if (
+  //     !selectedCat &&
+  //     !selectedSub &&
+  //     !selectedTag &&
+  //     !selectedProd &&
+  //     selectedTypes.length === 0
+  //   ) {
+  //     return allDownloads;
+  //   }
 
-    return allDownloads.filter((doc) => {
+  //   return allDownloads.filter((doc) => {
+  //     if (selectedCat && String(doc.category_id) !== String(selectedCat))
+  //       return false;
+  //     if (selectedSub && String(doc.subcategory_id) !== String(selectedSub))
+  //       return false;
+  //     if (selectedTag && String(doc.tag_id) !== String(selectedTag))
+  //       return false;
+  //     if (selectedProd && String(doc.product_id) !== String(selectedProd))
+  //       return false;
+
+  //     if (
+  //       selectedTypes.length > 0 &&
+  //       !selectedTypes.includes(doc.resource_type)
+  //     )
+  //       return false;
+
+  //     return true;
+  //   });
+  // }, [
+  //   allDownloads,
+  //   selectedCat,
+  //   selectedSub,
+  //   selectedTag,
+  //   selectedProd,
+  //   selectedTypes,
+  // ]);
+
+
+
+  const filteredDownloads = useMemo(() => {
+    const baseFiltered = allDownloads.filter((doc) => {
       if (selectedCat && String(doc.category_id) !== String(selectedCat))
         return false;
       if (selectedSub && String(doc.subcategory_id) !== String(selectedSub))
@@ -179,7 +209,6 @@ const Downloads = () => {
         return false;
       if (selectedProd && String(doc.product_id) !== String(selectedProd))
         return false;
-
       if (
         selectedTypes.length > 0 &&
         !selectedTypes.includes(doc.resource_type)
@@ -188,6 +217,18 @@ const Downloads = () => {
 
       return true;
     });
+
+    const downloadsHashMap = new Map();
+
+    for (const doc of baseFiltered) {
+      const hashKey = doc.name ? doc.name.trim().toLowerCase() : doc.resource_url;
+
+      if (!downloadsHashMap.has(hashKey)) {
+        downloadsHashMap.set(hashKey, doc);
+      }
+    }
+
+    return Array.from(downloadsHashMap.values());
   }, [
     allDownloads,
     selectedCat,
@@ -196,6 +237,7 @@ const Downloads = () => {
     selectedProd,
     selectedTypes,
   ]);
+
 
   const groupedDownloads = useMemo(() => {
     const groups = {};
@@ -217,7 +259,7 @@ const Downloads = () => {
         onDownloadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) /
-              (progressEvent.total || progressEvent.loaded),
+            (progressEvent.total || progressEvent.loaded),
           );
           setDownloadProgress((prev) => ({
             ...prev,
@@ -463,9 +505,9 @@ const Downloads = () => {
                           <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[50%]">
                             Document Details
                           </th>
-                          <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[20%]">
+                          {/* <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[20%]">
                             Product ID
-                          </th>
+                          </th> */}
                           <th className="px-6 py-4 text-sm font-semibold text-gray-500 text-right w-[30%]">
                             Action
                           </th>
@@ -483,12 +525,12 @@ const Downloads = () => {
                               </div>
                             </td>
 
-                            <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 text-sm font-mono text-gray-500 mb-4 md:mb-0 border-b border-gray-100 md:border-none pb-4 md:pb-0 align-middle">
+                            {/* <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 text-sm font-mono text-gray-500 mb-4 md:mb-0 border-b border-gray-100 md:border-none pb-4 md:pb-0 align-middle">
                               <span className="md:hidden text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">
                                 Product:
                               </span>
                               {getProductName(doc.product_id)}
-                            </td>
+                            </td> */}
 
                             <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 pt-4 md:pt-0 align-middle">
                               <div className="flex items-center md:justify-end gap-3 w-full">
@@ -517,15 +559,14 @@ const Downloads = () => {
                                     downloadProgress[doc.resource_url] !==
                                     undefined
                                   }
-                                  className={`flex-1 md:flex-none inline-flex justify-center items-center gap-2 px-4 py-2.5 md:py-2 bg-white border rounded text-xs md:text-sm font-bold shadow-sm transition-all ${
-                                    downloadProgress[doc.resource_url] !==
+                                  className={`flex-1 md:flex-none inline-flex justify-center items-center gap-2 px-4 py-2.5 md:py-2 bg-white border rounded text-xs md:text-sm font-bold shadow-sm transition-all ${downloadProgress[doc.resource_url] !==
                                     undefined
-                                      ? "border-gray-300 text-[#da0e19] cursor-wait"
-                                      : "border-gray-200 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] hover:shadow"
-                                  }`}
+                                    ? "border-gray-300 text-[#da0e19] cursor-wait"
+                                    : "border-gray-200 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] hover:shadow"
+                                    }`}
                                 >
                                   {downloadProgress[doc.resource_url] !==
-                                  undefined ? (
+                                    undefined ? (
                                     <span className="animate-pulse">
                                       {downloadProgress[doc.resource_url]}%
                                     </span>
