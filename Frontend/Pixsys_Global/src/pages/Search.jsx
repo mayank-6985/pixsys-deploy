@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useSearchParams,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import { useSearchResults } from "../hooks/useSearch";
 import { FaHome } from "react-icons/fa";
+import { authService } from "../Services/authService";
+import api from "../api";
 import {
   FiDownload,
   FiEye,
@@ -18,32 +25,9 @@ const getYoutubeId = (url) => {
   const match = url.match(regExp);
   return match && match[2].length === 11 ? match[2] : null;
 };
-const forceDownload = async (url, customFilename) => {
-  try {
-    const response = await fetch(url, { method: "GET" });
-    if (!response.ok) throw new Error("Failed to fetch file");
 
-    const blob = await response.blob();
-
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = blobUrl;
-
-    link.download =
-      customFilename || url.split("/").pop().split("?")[0] || "download";
-
-    document.body.appendChild(link);
-    link.click();
-
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-  } catch (error) {
-    console.error("Forced download failed, falling back to new tab:", error);
-    window.open(url, "_blank");
-  }
-};
-const SingleProductView = ({ product, onBack }) => {
+// 1. Added forceDownload as a prop here
+const SingleProductView = ({ product, onBack, forceDownload }) => {
   const [activeTab, setActiveTab] = useState("overview");
 
   if (!product) return null;
@@ -248,6 +232,109 @@ const SolutionVideoCard = ({ solution, onClick }) => {
 const Search = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // 2. State & Functions properly moved to the main Search component
+  const location = useLocation();
+  const [downloadProgress, setDownloadProgress] = useState({});
+
+  const handleSecureAction = (e, callback) => {
+    if (!authService.getAccessToken()) {
+      e.preventDefault();
+      const fullCurrentUrl = location.pathname + location.search;
+      navigate("/login", { state: { returnTo: fullCurrentUrl } });
+      return;
+    }
+    if (callback) callback();
+  };
+
+  const forceDownload = async (url, customFilename) => {
+    const fileId = url;
+    try {
+      setDownloadProgress((prev) => ({ ...prev, [fileId]: 0 }));
+      const response = await api.get(url, {
+        responseType: "blob",
+        onDownloadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) /
+              (progressEvent.total || progressEvent.loaded),
+          );
+          setDownloadProgress((prev) => ({
+            ...prev,
+            [fileId]: percentCompleted,
+          }));
+        },
+      });
+      const blob = new Blob([response.data], {
+        type: "application/octet-stream",
+      });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const rawExtension = url.split(/[#?]/)[0].split(".").pop().trim();
+      let finalFilename = customFilename || "download";
+
+      if (
+        rawExtension &&
+        !finalFilename.toLowerCase().endsWith(`.${rawExtension.toLowerCase()}`)
+      ) {
+        finalFilename = `${finalFilename}.${rawExtension}`;
+      }
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.setAttribute("download", finalFilename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      setTimeout(() => {
+        setDownloadProgress((prev) => {
+          const newState = { ...prev };
+          delete newState[fileId];
+          return newState;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error("Download failed:", error);
+      setDownloadProgress((prev) => {
+        const newState = { ...prev };
+        delete newState[fileId];
+        return newState;
+      });
+      window.open(url, "_blank"); // Fallback
+    }
+  };
+
+  const getMimeType = (url) => {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes(".pdf")) return "application/pdf";
+    if (lowerUrl.includes(".jpg") || lowerUrl.includes(".jpeg"))
+      return "image/jpeg";
+    if (lowerUrl.includes(".png")) return "image/png";
+    if (lowerUrl.includes(".txt")) return "text/plain";
+    return null;
+  };
+
+  const forceView = async (url) => {
+    const newTab = window.open("", "_blank");
+    if (!newTab) {
+      alert("Please allow pop-ups for this site to view documents.");
+      return;
+    }
+    newTab.document.write(
+      "<html style='height:100%; display:flex; justify-content:center; align-items:center; background:#fafafa; font-family:sans-serif;'><h2>Loading secure document...</h2></html>",
+    );
+    try {
+      const response = await api.get(url, { responseType: "blob" });
+      const blobType =
+        getMimeType(url) || response.data.type || "application/pdf";
+      const blob = new Blob([response.data], { type: blobType });
+      const blobUrl = window.URL.createObjectURL(blob);
+      newTab.location.href = blobUrl;
+    } catch (error) {
+      console.error("Secure view failed. Falling back to direct URL.", error);
+      newTab.location.href = url;
+    }
+  };
 
   const [activeTab, setActiveTab] = useState("downloads");
   const [downloadFilter, setDownloadFilter] = useState("ALL");
@@ -457,26 +544,48 @@ const Search = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            <a
-                              className="flex items-center gap-2 px-4 py-2 rounded border border-gray-300 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] transition-all text-xs font-bold uppercase tracking-widest bg-gray-50 hover:bg-white"
-                              href={download.resource_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <FiEye size={14} />
-                              <span>View</span>
-                            </a>
                             <button
-                              onClick={() =>
-                                forceDownload(
-                                  download.resource_url,
-                                  download.name,
+                              onClick={(e) =>
+                                handleSecureAction(e, () =>
+                                  forceView(download.resource_url),
                                 )
                               }
                               className="flex items-center gap-2 px-4 py-2 rounded border border-gray-300 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] transition-all text-xs font-bold uppercase tracking-widest bg-gray-50 hover:bg-white"
                             >
-                              <FiDownload size={14} />
-                              <span>Download</span>
+                              <FiEye size={14} />
+                              <span>View</span>
+                            </button>
+                            <button
+                              onClick={(e) =>
+                                handleSecureAction(e, () =>
+                                  forceDownload(
+                                    download.resource_url,
+                                    download.name,
+                                  ),
+                                )
+                              }
+                              disabled={
+                                downloadProgress[download.resource_url] !==
+                                undefined
+                              }
+                              className={`flex items-center gap-2 px-4 py-2 rounded border text-xs font-bold uppercase tracking-widest transition-all ${
+                                downloadProgress[download.resource_url] !==
+                                undefined
+                                  ? "bg-white border-gray-300 text-[#da0e19] cursor-wait"
+                                  : "bg-gray-50 border-gray-300 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] hover:bg-white"
+                              }`}
+                            >
+                              {downloadProgress[download.resource_url] !==
+                              undefined ? (
+                                <span className="animate-pulse">
+                                  {downloadProgress[download.resource_url]}%
+                                </span>
+                              ) : (
+                                <>
+                                  <FiDownload size={14} />
+                                  <span>Download</span>
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>
@@ -493,9 +602,11 @@ const Search = () => {
               {activeTab === "products" && (
                 <div>
                   {selectedProduct ? (
+                    // 3. Passed forceDownload prop here to SingleProductView
                     <SingleProductView
                       product={selectedProduct}
                       onBack={() => setSelectedProduct(null)}
+                      forceDownload={forceDownload}
                     />
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

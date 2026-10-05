@@ -6,7 +6,31 @@ import {
   useCategoryMutations,
   useSolutionMutations,
 } from "../hooks/useSolutions";
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
+
+const MessageBanner = ({ type, text, onClose }) => {
+  if (!text) return null;
+  const isError = type === "error";
+  return (
+    <div
+      className={`mb-4 p-4 text-sm font-medium flex justify-between items-center rounded-md ${
+        isError
+          ? "bg-red-50 border-l-4 border-[#da0e19] text-[#da0e19]"
+          : "bg-green-50 border-l-4 border-green-600 text-green-700"
+      }`}
+    >
+      <span>{text}</span>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="opacity-70 hover:opacity-100 text-lg leading-none"
+        >
+          &times;
+        </button>
+      )}
+    </div>
+  );
+};
 
 const emptyCategory = { category_name: "", thumbnail: "" };
 const emptySolution = {
@@ -23,6 +47,11 @@ const Solutions = () => {
 
   const [catFormData, setCatFormData] = useState(emptyCategory);
   const [solFormData, setSolFormData] = useState(emptySolution);
+
+  // Custom Modal & Notification States
+  const [deleteConfirm, setDeleteConfirm] = useState({ id: null, type: null });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [pageMessage, setPageMessage] = useState({ type: "", text: "" });
 
   const { data: rawData = [], isLoading } = useAdminSolutionsData();
   const { createCat, updateCat, deleteCat } = useCategoryMutations();
@@ -50,6 +79,7 @@ const Solutions = () => {
   }, [rawData]);
 
   const handleOpenCreate = () => {
+    setPageMessage({ type: "", text: "" });
     setEditingId(null);
     if (activeTab === "categories") {
       setCatFormData(emptyCategory);
@@ -64,6 +94,7 @@ const Solutions = () => {
   };
 
   const handleOpenEditCat = (cat) => {
+    setPageMessage({ type: "", text: "" });
     setEditingId(cat.category_id);
     setCatFormData({
       category_name: cat.category_name,
@@ -74,6 +105,7 @@ const Solutions = () => {
   };
 
   const handleOpenEditSol = (sol) => {
+    setPageMessage({ type: "", text: "" });
     setEditingId(sol.solutions_id);
     setSolFormData({
       category_id: sol.category_id,
@@ -85,25 +117,58 @@ const Solutions = () => {
     setView("form");
   };
 
-  const handleDeleteCat = (id) => {
-    if (window.confirm("Delete this category AND all its solutions?")) {
-      deleteCat.mutate(id, {
-        onError: () => {
-          alert(
-            "Something went wrong while trying to delete this category. Please try again.",
-          );
-        },
-      });
-    }
+  const initiateDeleteCat = (id) => {
+    setPageMessage({ type: "", text: "" });
+    setDeleteConfirm({ id, type: "category" });
   };
 
-  const handleDeleteSol = (id) => {
-    if (window.confirm("Delete this solution?")) {
-      deleteSol.mutate(id, {
+  const initiateDeleteSol = (id) => {
+    setPageMessage({ type: "", text: "" });
+    setDeleteConfirm({ id, type: "solution" });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirm.id) return;
+    setIsDeleting(true);
+
+    const { id, type } = deleteConfirm;
+
+    if (type === "category") {
+      deleteCat.mutate(id, {
+        onSuccess: () => {
+          setPageMessage({
+            type: "success",
+            text: "Category deleted successfully.",
+          });
+          setDeleteConfirm({ id: null, type: null });
+          setIsDeleting(false);
+        },
         onError: () => {
-          alert(
-            "Something went wrong while trying to delete this solution. Please try again.",
-          );
+          setPageMessage({
+            type: "error",
+            text: "Something went wrong while trying to delete this category. Please try again.",
+          });
+          setDeleteConfirm({ id: null, type: null });
+          setIsDeleting(false);
+        },
+      });
+    } else {
+      deleteSol.mutate(id, {
+        onSuccess: () => {
+          setPageMessage({
+            type: "success",
+            text: "Solution deleted successfully.",
+          });
+          setDeleteConfirm({ id: null, type: null });
+          setIsDeleting(false);
+        },
+        onError: () => {
+          setPageMessage({
+            type: "error",
+            text: "Something went wrong while trying to delete this solution. Please try again.",
+          });
+          setDeleteConfirm({ id: null, type: null });
+          setIsDeleting(false);
         },
       });
     }
@@ -194,7 +259,7 @@ const Solutions = () => {
                   />
                 </div>
                 <div>
-                  <S3Uploader
+                  <FileUploader
                     label="Category Thumbnail *"
                     accept="image/*"
                     folder="solutions/categories"
@@ -286,7 +351,7 @@ const Solutions = () => {
                   />
                 </div>
                 <div>
-                  <S3Uploader
+                  <FileUploader
                     label="Solution Thumbnail *"
                     accept="image/*"
                     folder="solutions/thumbnails"
@@ -351,19 +416,75 @@ const Solutions = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6">
+    <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6 relative">
+      {/* CUSTOM DELETE MODAL */}
+      {deleteConfirm.id !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 transition-opacity">
+          <div className="bg-white w-full max-w-md shadow-xl flex flex-col">
+            <div className="bg-[#1a1a1a] px-6 py-4 flex justify-between items-center">
+              <h3 className="text-white font-bold tracking-widest uppercase text-sm">
+                Confirm Delete
+              </h3>
+              <button
+                onClick={() => setDeleteConfirm({ id: null, type: null })}
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="p-8 text-center bg-white">
+              <p className="text-zinc-700 text-sm font-medium">
+                {deleteConfirm.type === "category"
+                  ? "Are you sure you want to delete this category AND all its solutions?"
+                  : "Are you sure you want to delete this solution?"}
+              </p>
+            </div>
+
+            <div className="px-6 py-4 flex justify-center gap-4 bg-white border-t border-zinc-100">
+              <button
+                onClick={() => setDeleteConfirm({ id: null, type: null })}
+                className="px-6 py-2.5 border border-zinc-300 text-zinc-700 font-bold uppercase tracking-widest text-xs hover:bg-zinc-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#da0e19] hover:bg-red-700 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-70"
+              >
+                {isDeleting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <FiTrash2 size={14} />
+                )}
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-zinc-200 shadow-sm p-6 flex flex-col gap-6">
         <div className="px-2 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-100 pb-6">
           <div className="flex bg-zinc-100 p-1 rounded-lg">
             <button
               onClick={() => setActiveTab("categories")}
-              className={`px-6 py-2 rounded-md text-xs tracking-widest uppercase font-bold transition-all ${activeTab === "categories" ? "bg-white text-[#da0e19] shadow-sm" : "text-zinc-500 hover:text-zinc-700"}`}
+              className={`px-6 py-2 rounded-md text-xs tracking-widest uppercase font-bold transition-all ${
+                activeTab === "categories"
+                  ? "bg-white text-[#da0e19] shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-700"
+              }`}
             >
               Categories
             </button>
             <button
               onClick={() => setActiveTab("solutions")}
-              className={`px-6 py-2 rounded-md text-xs tracking-widest uppercase font-bold transition-all ${activeTab === "solutions" ? "bg-white text-[#da0e19] shadow-sm" : "text-zinc-500 hover:text-zinc-700"}`}
+              className={`px-6 py-2 rounded-md text-xs tracking-widest uppercase font-bold transition-all ${
+                activeTab === "solutions"
+                  ? "bg-white text-[#da0e19] shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-700"
+              }`}
             >
               Solutions
             </button>
@@ -376,6 +497,13 @@ const Solutions = () => {
             {activeTab === "categories" ? "Category" : "Solution"}
           </button>
         </div>
+
+        {/* MESSAGE BANNER INTEGRATION */}
+        <MessageBanner
+          type={pageMessage.type}
+          text={pageMessage.text}
+          onClose={() => setPageMessage({ type: "", text: "" })}
+        />
 
         <div className="overflow-x-auto w-full">
           {isLoading ? (
@@ -412,19 +540,31 @@ const Solutions = () => {
                       <button
                         onClick={() => handleOpenEditCat(item)}
                         className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                        title="Edit"
                       >
                         <FiEdit2 size={16} />
                       </button>
                       <button
-                        onClick={() => handleDeleteCat(item.category_id)}
-                        disabled={deleteCat.isPending}
+                        onClick={() => initiateDeleteCat(item.category_id)}
+                        disabled={isDeleting || deleteCat.isPending}
                         className="p-2 text-zinc-400 hover:text-[#da0e19] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Delete"
                       >
                         <FiTrash2 size={16} />
                       </button>
                     </td>
                   </tr>
                 ))}
+                {categoriesList.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="4"
+                      className="py-12 text-center text-zinc-400 font-bold uppercase tracking-widest text-xs"
+                    >
+                      No categories found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           ) : (
@@ -458,19 +598,31 @@ const Solutions = () => {
                       <button
                         onClick={() => handleOpenEditSol(item)}
                         className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                        title="Edit"
                       >
                         <FiEdit2 size={16} />
                       </button>
                       <button
-                        onClick={() => handleDeleteSol(item.solutions_id)}
-                        disabled={deleteSol.isPending}
+                        onClick={() => initiateDeleteSol(item.solutions_id)}
+                        disabled={isDeleting || deleteSol.isPending}
                         className="p-2 text-zinc-400 hover:text-[#da0e19] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Delete"
                       >
                         <FiTrash2 size={16} />
                       </button>
                     </td>
                   </tr>
                 ))}
+                {solutionsList.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="4"
+                      className="py-12 text-center text-zinc-400 font-bold uppercase tracking-widest text-xs"
+                    >
+                      No solutions found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           )}

@@ -10,10 +10,12 @@ import { useEffect } from "react";
 
 import { useSolutions } from "../hooks/useSolutions";
 import { useProducts } from "../hooks/useProducts";
+import { useLinks } from "../hooks/useMediaLinks";
 
 const Footer = () => {
   const { data: solutionsData = [] } = useSolutions();
   const { data: productsData = [] } = useProducts();
+  const { data: mediaLinks = {} } = useLinks();
 
   const location = useLocation();
 
@@ -104,54 +106,55 @@ const Footer = () => {
             <h3 className="hidden md:block text-white font-bold text-lg mb-6">
               Contact Us
             </h3>
-            {/* <a
-              href="https://info@pixsysglobal.com"
-              className="text-primary font-bold text-lg mb-8 hover:text-white transition-colors"
-            >
-              info@pixsysglobal.com
-            </a> */}
             <h1 className="text-primary font-bold text-lg mb-8 hover:text-white transition-colors">
-              info@pixsysglobal.com
+              {mediaLinks.contact_email && (
+                <a href={`mailto:${mediaLinks.contact_email}`}>
+                  {mediaLinks.contact_email}
+                </a>
+              )}
             </h1>
 
             <h3 className="hidden md:block text-white font-bold text-lg mb-6">
               Subscribe to the latest updates
             </h3>
             <div className="flex gap-4 mb-6">
-              <a
-                href="#"
-                className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
-              >
-                <FaLinkedinIn />
-              </a>
-              <a
-                href="#"
-                className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
-              >
-                <FaFacebookF />
-              </a>
-              <a
-                href="#"
-                className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
-              >
-                <FaYoutube />
-              </a>
-              <a
-                href="#"
-                className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
-              >
-                <FaInstagram />
-              </a>
+              {mediaLinks.linkedin_link && (
+                <a
+                  href={mediaLinks.linkedin_link}
+                  className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
+                >
+                  <FaLinkedinIn />
+                </a>
+              )}
+              {mediaLinks.facebook_link && (
+                <a
+                  href={mediaLinks.facebook_link}
+                  className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
+                >
+                  <FaFacebookF />
+                </a>
+              )}
+              {mediaLinks.youtube_link && (
+                <a
+                  href={mediaLinks.youtube_link}
+                  className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
+                >
+                  <FaYoutube />
+                </a>
+              )}
+              {mediaLinks.instagram_link && (
+                <a
+                  href={mediaLinks.instagram_link}
+                  className="w-11 h-11 rounded-full bg-gray-500 text-primary flex items-center justify-center text-lg hover:bg-gray-600 transition-colors"
+                >
+                  <FaInstagram />
+                </a>
+              )}
             </div>
           </div>
         </div>
-
         <div className="mt-12 text-xs text-gray-400 flex flex-col gap-3">
-          <p>
-            COPYRIGHT &copy;{" "}
-            <a href="https://shivvilonsolutions.com/">ShivvilonSolutions</a> All
-            Rights Reserved
-          </p>
+          <p>COPYRIGHT &copy; PIXsys Technology Co. Ltd. Rights Reserved</p>
         </div>
       </div>
     </footer>

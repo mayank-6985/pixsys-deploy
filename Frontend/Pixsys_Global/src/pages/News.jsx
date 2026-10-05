@@ -98,11 +98,6 @@ const News = () => {
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
       <section className="relative w-full h-[400px] bg-gray-900 flex flex-col justify-between pt-24">
-        <img
-          src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80"
-          alt="News Hero"
-          className="absolute inset-0 w-full h-full object-cover opacity-30"
-        />
         <div className="relative z-10 max-w-7xl mx-auto px-6 w-full mt-10">
           <h1 className="text-4xl md:text-5xl font-bold text-white">News</h1>
         </div>

@@ -1,8 +1,29 @@
 import React, { useState } from "react";
 import { HiOutlineArrowLeft, HiOutlineDownload } from "react-icons/hi";
-
+import { useNavigate, useLocation } from "react-router-dom";
+import { authService } from "../../Services/authService";
+import { useDownloadManager } from "../../Services/Context/DownloadContext";
 const SingleProductView = ({ product, onBack }) => {
   const [activeTab, setActiveTab] = useState("overview");
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { downloadProgress, forceDownload } = useDownloadManager();
+
+  const handleSecureAction = (e, callback) => {
+    e.preventDefault();
+
+    if (!authService.getAccessToken()) {
+      const fullCurrentUrl = location.pathname + location.search;
+
+      navigate("/login", {
+        state: { returnTo: fullCurrentUrl },
+      });
+      return;
+    }
+
+    if (callback) callback();
+  };
 
   if (!product) return null;
 
@@ -17,32 +38,31 @@ const SingleProductView = ({ product, onBack }) => {
   const allTabs = ["overview"];
   if (hasSpecifications) allTabs.push("specifications");
   allTabs.push(...downloadTabs);
-  
-  const forceDownload = async (url, customFilename) => {
-    try {
-      const response = await fetch(url, { method: "GET" });
-      if (!response.ok) throw new Error("Failed to fetch file");
 
-      const blob = await response.blob();
+  // const forceDownload = async (url, customFilename) => {
+  //   try {
+  //     const response = await fetch(url, { method: "GET" });
+  //     if (!response.ok) throw new Error("Failed to fetch file");
 
-      const blobUrl = window.URL.createObjectURL(blob);
+  //     const blob = await response.blob();
+  //     const blobUrl = window.URL.createObjectURL(blob);
 
-      const link = document.createElement("a");
-      link.href = blobUrl;
+  //     const link = document.createElement("a");
+  //     link.href = blobUrl;
 
-      link.download =
-        customFilename || url.split("/").pop().split("?")[0] || "download";
+  //     link.download =
+  //       customFilename || url.split("/").pop().split("?")[0] || "download";
 
-      document.body.appendChild(link);
-      link.click();
+  //     document.body.appendChild(link);
+  //     link.click();
 
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error("Forced download failed, falling back to new tab:", error);
-      window.open(url, "_blank");
-    }
-  };
+  //     document.body.removeChild(link);
+  //     window.URL.revokeObjectURL(blobUrl);
+  //   } catch (error) {
+  //     console.error("Forced download failed, falling back to new tab:", error);
+  //     window.open(url, "_blank");
+  //   }
+  // };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
@@ -92,7 +112,6 @@ const SingleProductView = ({ product, onBack }) => {
         </div>
 
         <div className="min-h-[300px]">
-          {/* 1. Overview Tab Content */}
           {activeTab === "overview" && (
             <div className="text-gray-600 text-lg leading-relaxed whitespace-pre-line">
               {product.description}
@@ -117,25 +136,46 @@ const SingleProductView = ({ product, onBack }) => {
           )}
 
           {downloadTabs.includes(activeTab) && product.downloads[activeTab] && (
-            <div className="grid grid-cols-1 gap-4">
-              {product.downloads[activeTab].map((item) => (
-                <div
-                  key={item.download_id}
-                  className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-5 border border-gray-100 rounded-lg hover:border-[#da0e19] hover:shadow-md transition-all group"
-                >
-                  <div className="mb-4 sm:mb-0">
-                    <h4 className="text-base font-bold text-gray-900 group-hover:text-[#da0e19] transition-colors uppercase">
-                      {item.name}
-                    </h4>
-                  </div>
-                  <button
-                    onClick={() => forceDownload(item.resource_url, item.name)}
-                    className="flex items-center justify-center gap-2 bg-gray-50 group-hover:bg-[#da0e19] text-gray-600 group-hover:text-white px-6 py-2.5 rounded font-bold text-sm transition-all"
+            <div className="grid grid-cols-1 gap-4 ">
+              {product.downloads[activeTab].map((item, index) => {
+                // Industry Standard: Provide a guaranteed unique ID fallback to prevent state collisions
+                const uniqueId =
+                  item.download_id || item.id || `download_${index}`;
+
+                return (
+                  <div
+                    key={uniqueId}
+                    className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-5 border border-gray-100 rounded-lg hover:border-[#da0e19] hover:shadow-md transition-all group"
                   >
-                    Download File <HiOutlineDownload className="text-lg" />
-                  </button>
-                </div>
-              ))}
+                    <div className="mb-4 sm:mb-0">
+                      <h4 className="text-base font-bold text-gray-900 group-hover:text-[#da0e19] transition-colors uppercase">
+                        {item.name}
+                      </h4>
+                    </div>
+
+                    <button
+                      onClick={(e) =>
+                        handleSecureAction(e, () =>
+                          forceDownload(item.resource_url, item.name, uniqueId),
+                        )
+                      }
+                      disabled={downloadProgress[uniqueId] !== undefined}
+                      className="flex items-center justify-center gap-2 bg-gray-50 group-hover:bg-[#da0e19] text-gray-600 group-hover:text-white px-6 py-2.5 rounded font-bold text-sm transition-all disabled:bg-gray-100 disabled:text-[#da0e19] disabled:cursor-wait"
+                    >
+                      {downloadProgress[uniqueId] !== undefined ? (
+                        <span className="animate-pulse">
+                          Downloading {downloadProgress[uniqueId]}%
+                        </span>
+                      ) : (
+                        <>
+                          Download File{" "}
+                          <HiOutlineDownload className="text-lg" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

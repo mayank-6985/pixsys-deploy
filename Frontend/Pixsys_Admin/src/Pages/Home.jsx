@@ -1,43 +1,144 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useHomes } from "../hooks/useHomes";
 import { apiService } from "../Services/uploadService";
-import { FiTrash2 } from "react-icons/fi";
+import { FiTrash2, FiLink } from "react-icons/fi";
 import { Loader2 } from "lucide-react";
+import { companySettingsApi } from "../Services/companySettingsService";
+
+const MessageBanner = ({ type, text, onClose }) => {
+  if (!text) return null;
+  const isError = type === "error";
+  return (
+    <div
+      className={`mb-4 p-4 text-sm font-medium flex justify-between items-center ${
+        isError
+          ? "bg-red-50 border-l-4 border-[#da0e19] text-[#da0e19]"
+          : "bg-green-50 border-l-4 border-green-600 text-green-700"
+      }`}
+    >
+      <span>{text}</span>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="opacity-70 hover:opacity-100 text-lg leading-none"
+        >
+          &times;
+        </button>
+      )}
+    </div>
+  );
+};
 
 const Home = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-
   const [sliderImages, setSliderImages] = useState([]);
   const [isLoadingImages, setIsLoadingImages] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [deleteConfirmIndex, setDeleteConfirmIndex] = useState(null);
+  const [sliderMessage, setSliderMessage] = useState({ type: "", text: "" });
+  const [settingsMessage, setSettingsMessage] = useState({
+    type: "",
+    text: "",
+  });
+
+  // Settings State
+  const [companySettings, setCompanySettings] = useState({
+    contact_email: "",
+    instagram_link: "",
+    facebook_link: "",
+    linkedin_link: "",
+    youtube_link: "",
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // SMTP Settings State
+  const [smtpSettings, setSmtpSettings] = useState({
+    email_host_user: "",
+    email_host_password: "",
+  });
+  const [isEditingSmtp, setIsEditingSmtp] = useState(false);
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [smtpMessage, setSmtpMessage] = useState({ type: "", text: "" });
 
   const fileInputRef = useRef(null);
   const { executeUpload, isUploading, progress, error, resetState } =
     useHomes();
 
   useEffect(() => {
-    const fetchImages = async () => {
+    const fetchInitialData = async () => {
       try {
         const data = await apiService.getSliderImages();
         setSliderImages(data || []);
       } catch (err) {
-        alert(
-          "Something went wrong while loading the slider images. Please try again.",
-        );
+        console.error("Error loading slider images:", err);
+        setSliderMessage({
+          type: "error",
+          text: "Something went wrong while loading slider images. Please try again.",
+        });
       } finally {
         setIsLoadingImages(false);
       }
+
+      try {
+        if (typeof companySettingsApi.getCompanySettings !== "function") {
+          console.warn(
+            "Warning: apiService.getCompanySettings is not defined in your service file.",
+          );
+          return;
+        }
+
+        const settingsData = await companySettingsApi.getCompanySettings();
+        if (settingsData) {
+          setCompanySettings({
+            contact_email: settingsData.contact_email || "",
+            instagram_link: settingsData.instagram_link || "",
+            facebook_link: settingsData.facebook_link || "",
+            linkedin_link: settingsData.linkedin_link || "",
+            youtube_link: settingsData.youtube_link || "",
+          });
+        }
+      } catch (err) {
+        console.error("Error loading company settings:", err);
+        setSettingsMessage({
+          type: "error",
+          text: "Failed to load company settings.",
+        });
+      }
+      try {
+        if (typeof companySettingsApi.getSmtpSettings === "function") {
+          const smtpData = await companySettingsApi.getSmtpSettings();
+          if (smtpData) {
+            setSmtpSettings({
+              email_host_user: smtpData.email_host_user || "",
+              email_host_password: smtpData.email_host_password || "",
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error loading SMTP settings:", err);
+        setSmtpMessage({
+          type: "error",
+          text: "Failed to load SMTP settings.",
+        });
+      }
     };
-    fetchImages();
+
+    fetchInitialData();
   }, []);
 
+  // --- SLIDER METHODS ---
   const handleFileSelect = (file) => {
+    setSliderMessage({ type: "", text: "" });
     if (!file) return;
 
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      alert("Please select a valid image file (JPEG, PNG, WebP).");
+      setSliderMessage({
+        type: "error",
+        text: "Please select a valid image file (JPEG, PNG, WebP).",
+      });
       return;
     }
 
@@ -50,6 +151,10 @@ const Home = () => {
     try {
       await executeUpload(selectedFile, sliderImages, (newUpdatedArray) => {
         setSliderImages(newUpdatedArray);
+        setSliderMessage({
+          type: "success",
+          text: "Image uploaded and added to slider successfully!",
+        });
         cancelSelection();
       });
     } catch (err) {}
@@ -62,36 +167,155 @@ const Home = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDeleteImage = async (indexToRemove) => {
+  const initiateDelete = (index) => {
+    setSliderMessage({ type: "", text: "" });
     if (sliderImages.length <= 1) {
-      alert("Warning: The slider must contain at least one image.");
+      setSliderMessage({
+        type: "error",
+        text: "Warning: The slider must contain at least one image.",
+      });
       return;
     }
+    setDeleteConfirmIndex(index);
+  };
 
-    if (
-      !window.confirm(
-        "Are you sure you want to remove this image from the slider?",
-      )
-    ) {
-      return;
-    }
-
+  const confirmDelete = async () => {
+    if (deleteConfirmIndex === null) return;
     setIsDeleting(true);
     try {
-      const updatedImages = sliderImages.filter((_, i) => i !== indexToRemove);
+      const updatedImages = sliderImages.filter(
+        (_, i) => i !== deleteConfirmIndex,
+      );
       await apiService.updateSliderInDB(updatedImages);
       setSliderImages(updatedImages);
+      setSliderMessage({
+        type: "success",
+        text: "Image removed from slider successfully.",
+      });
     } catch (err) {
-      alert(
-        "Something went wrong while trying to delete this item. Please try again.",
-      );
+      setSliderMessage({
+        type: "error",
+        text: "Something went wrong while trying to delete this item. Please try again.",
+      });
     } finally {
       setIsDeleting(false);
+      setDeleteConfirmIndex(null);
+    }
+  };
+
+  // --- SETTINGS METHODS ---
+  const handleSettingChange = (e) => {
+    const { name, value } = e.target;
+    setCompanySettings((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    setSettingsMessage({ type: "", text: "" });
+    try {
+      await companySettingsApi.updateCompanySettings(companySettings);
+      setSettingsMessage({
+        type: "success",
+        text: "Settings updated successfully!",
+      });
+    } catch (err) {
+      setSettingsMessage({
+        type: "error",
+        text: "Failed to update settings. Please try again.",
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSmtpChange = (e) => {
+    const { name, value } = e.target;
+    setSmtpSettings((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveSmtp = async () => {
+    setIsSavingSmtp(true);
+    setSmtpMessage({ type: "", text: "" });
+    try {
+      await companySettingsApi.updateSmtpSettings(smtpSettings);
+      setSmtpMessage({
+        type: "success",
+        text: "SMTP settings updated successfully!",
+      });
+      setIsEditingSmtp(false);
+    } catch (err) {
+      setSmtpMessage({
+        type: "error",
+        text: "Failed to update SMTP settings. Please try again.",
+      });
+    } finally {
+      setIsSavingSmtp(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6">
+    <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6 relative">
+      {deleteConfirmIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 transition-opacity">
+          <div className="bg-white w-full max-w-md shadow-xl flex flex-col">
+            <div className="bg-[#1a1a1a] px-6 py-4 flex justify-between items-center">
+              <h3 className="text-white font-bold tracking-widest uppercase text-sm">
+                Confirm Delete
+              </h3>
+              <button
+                onClick={() => setDeleteConfirmIndex(null)}
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-8 text-center bg-white">
+              <p className="text-zinc-700 text-sm font-medium">
+                Are you sure you want to remove this image from the slider?
+              </p>
+            </div>
+
+            <div className="px-6 py-4 flex justify-center gap-4 bg-white border-t border-zinc-100">
+              <button
+                onClick={() => setDeleteConfirmIndex(null)}
+                className="px-6 py-2.5 border border-zinc-300 text-zinc-700 font-bold uppercase tracking-widest text-xs hover:bg-zinc-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#da0e19] hover:bg-red-700 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-70"
+              >
+                {isDeleting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <FiTrash2 size={14} />
+                )}
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- SLIDER CONTROLS SECTION --- */}
       <div className="bg-white border border-zinc-200 shadow-sm p-6 flex flex-col gap-6 max-w-5xl mx-auto w-full">
         <div className="flex items-center gap-3 border-b border-zinc-100 pb-4">
           <svg
@@ -112,12 +336,23 @@ const Home = () => {
           </h2>
         </div>
 
+        <MessageBanner
+          type={sliderMessage.type}
+          text={sliderMessage.text}
+          onClose={() => setSliderMessage({ type: "", text: "" })}
+        />
+        {error && (
+          <MessageBanner
+            type="error"
+            text="Something went wrong while processing your upload request. Please try again."
+          />
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
             <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-4">
               Add New Picture
             </h3>
-
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -141,7 +376,6 @@ const Home = () => {
                 className="hidden"
                 disabled={isUploading}
               />
-
               {!selectedFile ? (
                 <div className="flex flex-col items-center">
                   <svg
@@ -175,17 +409,10 @@ const Home = () => {
               )}
             </div>
 
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 border-l-4 border-[#da0e19] text-[#da0e19] text-sm font-medium rounded-r-md">
-                Something went wrong while processing your request. Please try
-                again.
-              </div>
-            )}
-
             {isUploading && (
               <div className="mt-4 p-4 border border-zinc-200 bg-zinc-50">
                 <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                  <span>Uploading to S3...</span>
+                  <span>Uploading...</span>
                   <span className="text-[#da0e19]">{progress}%</span>
                 </div>
                 <div className="w-full bg-zinc-200 h-1.5">
@@ -251,21 +478,11 @@ const Home = () => {
                         alt={`Slider ${index}`}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
-
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
-                          onClick={() => handleDeleteImage(index)}
-                          disabled={isDeleting || sliderImages.length <= 1}
-                          className={`p-3 rounded-full flex items-center justify-center transition-colors ${
-                            isDeleting || sliderImages.length <= 1
-                              ? "bg-zinc-300 text-zinc-500 cursor-not-allowed opacity-60"
-                              : "bg-white text-[#da0e19] hover:bg-[#da0e19] hover:text-white"
-                          }`}
-                          title={
-                            sliderImages.length <= 1
-                              ? "Cannot delete the last image"
-                              : "Delete Image"
-                          }
+                          onClick={() => initiateDelete(index)} // Triggers custom modal
+                          className={`p-3 rounded-full flex items-center justify-center transition-colors bg-white text-[#da0e19] hover:bg-[#da0e19] hover:text-white`}
+                          title="Delete Image"
                         >
                           <FiTrash2 size={18} />
                         </button>
@@ -277,6 +494,207 @@ const Home = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* --- COMPANY SETTINGS SECTION --- */}
+      <div className="bg-white border border-zinc-200 shadow-sm p-6 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+        <div className="flex items-center gap-3 border-b border-zinc-100 pb-4">
+          <FiLink className="w-6 h-6 text-[#da0e19]" />
+          <h2 className="text-lg font-black text-zinc-900 uppercase tracking-tight">
+            Company Settings & Links
+          </h2>
+        </div>
+
+        <MessageBanner
+          type={settingsMessage.type}
+          text={settingsMessage.text}
+          onClose={() => setSettingsMessage({ type: "", text: "" })}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              Contact Email
+            </label>
+            <input
+              type="email"
+              name="contact_email"
+              value={companySettings.contact_email}
+              onChange={handleSettingChange}
+              placeholder="admin@yourcompany.com"
+              className="w-full border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:border-[#da0e19] transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              Instagram Link
+            </label>
+            <input
+              type="text"
+              name="instagram_link"
+              value={companySettings.instagram_link}
+              onChange={handleSettingChange}
+              placeholder="https://instagram.com/..."
+              className="w-full border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:border-[#da0e19] transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              Facebook Link
+            </label>
+            <input
+              type="text"
+              name="facebook_link"
+              value={companySettings.facebook_link}
+              onChange={handleSettingChange}
+              placeholder="https://facebook.com/..."
+              className="w-full border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:border-[#da0e19] transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              LinkedIn Link
+            </label>
+            <input
+              type="text"
+              name="linkedin_link"
+              value={companySettings.linkedin_link}
+              onChange={handleSettingChange}
+              placeholder="https://linkedin.com/..."
+              className="w-full border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:border-[#da0e19] transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              YouTube Link
+            </label>
+            <input
+              type="text"
+              name="youtube_link"
+              value={companySettings.youtube_link}
+              onChange={handleSettingChange}
+              placeholder="https://youtube.com/..."
+              className="w-full border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:border-[#da0e19] transition-colors"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-zinc-100 pt-6 mt-2">
+          <button
+            onClick={handleSaveSettings}
+            disabled={isSavingSettings}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-[#da0e19] hover:bg-red-700 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isSavingSettings ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : null}
+            {isSavingSettings ? "Saving..." : "Save Settings"}
+          </button>
+        </div>
+      </div>
+      {/* --- SMTP SETTINGS SECTION --- */}
+      <div className="bg-white border border-zinc-200 shadow-sm p-6 flex flex-col gap-6 max-w-5xl mx-auto w-full">
+        <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-6 h-6 text-[#da0e19]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              ></path>
+            </svg>
+            <h2 className="text-lg font-black text-zinc-900 uppercase tracking-tight">
+              System Email (SMTP) Settings
+            </h2>
+          </div>
+
+          {!isEditingSmtp && (
+            <button
+              onClick={() => setIsEditingSmtp(true)}
+              className="px-4 py-2 border border-zinc-300 text-zinc-700 font-bold uppercase tracking-widest text-xs hover:bg-zinc-50 transition-colors"
+            >
+              Edit Settings
+            </button>
+          )}
+        </div>
+
+        <MessageBanner
+          type={smtpMessage.type}
+          text={smtpMessage.text}
+          onClose={() => setSmtpMessage({ type: "", text: "" })}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              Email Host User
+            </label>
+            <input
+              type="text"
+              name="email_host_user"
+              value={smtpSettings.email_host_user}
+              onChange={handleSmtpChange}
+              disabled={!isEditingSmtp}
+              placeholder="admin@yourcompany.com"
+              className={`w-full border px-4 py-3 text-sm focus:outline-none transition-colors ${
+                isEditingSmtp
+                  ? "border-zinc-300 focus:border-[#da0e19] bg-white"
+                  : "border-transparent bg-zinc-100 text-zinc-500 cursor-not-allowed"
+              }`}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-zinc-700 uppercase tracking-widest">
+              Email App Password
+            </label>
+            <input
+              type="text"
+              name="email_host_password"
+              value={smtpSettings.email_host_password}
+              onChange={handleSmtpChange}
+              disabled={!isEditingSmtp}
+              placeholder="Your App Password"
+              className={`w-full border px-4 py-3 text-sm focus:outline-none transition-colors ${
+                isEditingSmtp
+                  ? "border-zinc-300 focus:border-[#da0e19] bg-white"
+                  : "border-transparent bg-zinc-100 text-zinc-500 cursor-not-allowed"
+              }`}
+            />
+          </div>
+        </div>
+
+        {isEditingSmtp && (
+          <div className="flex justify-end gap-3 border-t border-zinc-100 pt-6 mt-2">
+            <button
+              onClick={() => setIsEditingSmtp(false)}
+              disabled={isSavingSmtp}
+              className="px-6 py-3 border border-zinc-300 text-zinc-700 font-bold uppercase tracking-widest text-xs hover:bg-zinc-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveSmtp}
+              disabled={isSavingSmtp}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-[#da0e19] hover:bg-red-700 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isSavingSmtp ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : null}
+              {isSavingSmtp ? "Saving..." : "Save SMTP"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

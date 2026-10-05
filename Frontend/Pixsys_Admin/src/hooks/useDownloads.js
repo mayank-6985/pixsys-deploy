@@ -4,7 +4,20 @@ import {
   updateDownload,
   deleteDownload,
   createDownload,
+  createResource,
+  updateResource,
+  deleteResource,
 } from "../Services/downloads";
+
+const useInvalidateAll = () => {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["adminDownloads"] });
+    qc.invalidateQueries({ queryKey: ["adminProducts"] });
+    qc.invalidateQueries({ queryKey: ["categoryDetails"] });
+    qc.invalidateQueries({ queryKey: ["productDetail"] });
+  };
+};
 
 export const useAllDownloads = () => {
   return useQuery({
@@ -15,25 +28,49 @@ export const useAllDownloads = () => {
 };
 
 export const useUpdateDownload = () => {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: updateDownload,
-    onSuccess: () => qc.invalidateQueries(["adminDownloads"]),
+    onSuccess: invalidate,
   });
 };
 
 export const useDeleteDownload = () => {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: deleteDownload,
-    onSuccess: () => qc.invalidateQueries(["adminDownloads"]),
+    onSuccess: invalidate,
   });
 };
 
 export const useCreateDownload = () => {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: createDownload,
-    onSuccess: () => qc.invalidateQueries(["adminDownloads"]),
+    onSuccess: invalidate,
+  });
+};
+
+export const useCreateResource = () => {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: createResource,
+    onSuccess: invalidate,
+  });
+};
+
+export const useUpdateResource = () => {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: updateResource,
+    onSuccess: invalidate,
+  });
+};
+
+export const useDeleteResource = () => {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: deleteResource,
+    onSuccess: invalidate,
   });
 };

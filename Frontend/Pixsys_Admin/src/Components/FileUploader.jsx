@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { useS3Upload } from "../hooks/useS3Upload";
+import { useFileUpload } from "../hooks/useFileUpload";
 import {
   FiUploadCloud,
   FiFile,
@@ -9,7 +9,7 @@ import {
   FiCommand,
 } from "react-icons/fi";
 
-const S3Uploader = ({
+const FileUploader = ({
   label = "Upload File",
   accept = "*",
   onUploadSuccess,
@@ -17,7 +17,7 @@ const S3Uploader = ({
   folder = "general",
 }) => {
   const fileInputRef = useRef(null);
-  const { uploadFile, isUploading, progress, error } = useS3Upload(folder);
+  const { uploadFile, isUploading, progress, error } = useFileUpload(folder);
   const [localPreview, setLocalPreview] = useState(currentFileUrl);
 
   const handleFileChange = async (e) => {
@@ -109,6 +109,12 @@ const S3Uploader = ({
               src={localPreview}
               alt="Preview"
               className="w-16 h-16 object-cover rounded shadow-sm border border-zinc-100"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "";
+                e.target.alt = "Image unavailable";
+                e.target.className = "w-16 h-16 bg-zinc-100 rounded border border-zinc-200 flex items-center justify-center";
+              }}
             />
           ) : isPdf ? (
             <div className="w-16 h-16 bg-red-50 text-[#da0e19] flex items-center justify-center rounded border border-red-100">
@@ -161,4 +167,4 @@ const S3Uploader = ({
   );
 };
 
-export default S3Uploader;
+export default FileUploader;

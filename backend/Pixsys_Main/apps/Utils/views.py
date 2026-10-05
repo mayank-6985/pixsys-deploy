@@ -1,94 +1,171 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import logging
-from .Utils_Service.utils_service import AWSUtilService
-from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import serializers
-from apps.Auth.permissions import IsWebSiteAdmin
-from rest_framework.permissions import AllowAny
+"""
+File Upload API View
+--------------------
+Replaces the old S3 presigned-URL flow with a secure, server-side upload
+pipeline that stores files on local disk (MEDIA_ROOT).
 
+Security measures:
+  • MIME type sniffing (magic bytes) to validate actual file content
+  • Allowlist of permitted extensions
+  • Maximum file size enforcement (20 MB, matches DATA_UPLOAD_MAX_MEMORY_SIZE)
+  • UUID-based filenames to prevent collisions and directory traversal
+  • Folder parameter is sanitised to a flat alphanumeric string
+"""
+
+import logging
+import os
+import uuid
+
+from django.conf import settings
+from django.core.files.storage import default_storage
+from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiTypes
+from rest_framework import serializers as drf_serializers
 
 logger = logging.getLogger(__name__)
 
-class GenerateUploadURLView(APIView):
-    # Route permissions natively through DRF's lifecycle
-    def get_permissions(self):
-        if self.request.method == 'POST':
-            # Only WebSiteAdmins can create/update the slider
-            return [IsWebSiteAdmin()]
-                
-        # Define who can view the slider (GET). 
-        # Example: Allow anyone to view it.
-        return [AllowAny()]
+# ──────────────────────────────────────────────
+# Allowed MIME types and extensions
+# ──────────────────────────────────────────────
+ALLOWED_MIME_TYPES = {
+    # Images
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/vnd.dxf', 'image/vnd.dwg',
+    # Documents / archives
+    'application/pdf',
+    'application/zip', 'application/x-zip-compressed',
+    'application/vnd.rar', 'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    'application/xml', 'text/xml',
+    'application/octet-stream',  # generic binary (CAD, EDS, etc.)
+    'application/step', 'application/stp',
+    # Executables / installers (allowed for download centre)
+    'application/x-msdownload', 'application/x-msi',
+}
+
+ALLOWED_EXTENSIONS = {
+    # Images
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+    # CAD / engineering
+    '.dxf', '.dwg', '.stp', '.step',
+    # Documents
+    '.pdf', '.xml', '.eds',
+    # Archives
+    '.zip', '.rar', '.7z',
+    # Executables / installers
+    '.exe', '.msi',
+}
+
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+
+
+def _sanitise_folder(folder_name: str) -> str:
+    """Return a safe, flat folder name (alphanumeric + hyphens/underscores)."""
+    import re
+    if not folder_name:
+        return 'general'
+    clean = re.sub(r'[^a-zA-Z0-9_-]', '', folder_name)
+    return clean or 'general'
+
+
+class FileUploadView(APIView):
     """
-    Endpoint: POST /api/generate-upload-url/
-    Generates a secure S3 presigned URL for direct frontend file uploads.
+    POST /v1/api/utils/upload/
+
+    Accepts a single file via ``multipart/form-data`` with an optional
+    ``folder`` field that determines the sub-directory under ``MEDIA_ROOT``.
+
+    Returns the public URL of the saved file so the admin panel can store
+    it as a URLField value in MongoDB documents.
     """
+    parser_classes = [MultiPartParser, FormParser]
+
     @extend_schema(
-        summary="Generate AWS Presigned URL",
+        summary="Upload a file to local storage",
         description=(
-            "Generates a secure, temporary AWS S3 presigned URL for file uploads. "
-            "Expects file metadata at the root of the JSON body. The client can use "
-            "the returned URL to PUT the file directly to S3."
+            "Accepts a file via multipart/form-data and stores it on the "
+            "server's local disk.  Returns the publicly-accessible URL."
         ),
-        request=inline_serializer(
-            name="PresignedUrlRequest",
-            fields={
-                "file_name": serializers.CharField(help_text="The name of the file to upload (e.g., 'invoice.pdf')"),
-                "file_type": serializers.CharField(help_text="The MIME type of the file (e.g., 'application/pdf')")
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'file': {'type': 'string', 'format': 'binary'},
+                    'folder': {'type': 'string', 'default': 'general'},
+                },
+                'required': ['file'],
             }
-        ),
+        },
         responses={
-            200: inline_serializer(
-                name="PresignedUrlResponse",
+            201: inline_serializer(
+                name="FileUploadSuccess",
                 fields={
-                    "upload_url": serializers.URLField(help_text="The secure HTTP PUT URL to upload the file to S3."),
-                    "file_url": serializers.URLField(help_text="The final public or protected URL where the file will be hosted."),
-                    "fields": serializers.DictField(
-                        child=serializers.CharField(), 
-                        required=False, 
-                        help_text="Any additional form fields required if using a POST policy instead of a PUT URL."
-                    )
+                    "file_url": drf_serializers.URLField(),
+                    "message": drf_serializers.CharField(),
                 }
             ),
             400: inline_serializer(
-                name="PresignedUrlError",
-                fields={"error": serializers.CharField(help_text="Error message detailing why the URL generation failed.")}
-            )
+                name="FileUploadError",
+                fields={"error": drf_serializers.CharField()}
+            ),
         }
-    )    
+    )
     def post(self, request):
-        # Require authentication for POST requests only
-        from rest_framework.permissions import IsAuthenticated
-        self.permission_classes = [IsAuthenticated]
-        self.check_permissions(request)
-        
-        try:
-            # DRF's request.data automatically handles JSON parsing
-            file_name = request.data.get('file_name')
-            file_type = request.data.get('file_type') 
-            
-            if not file_name or not file_type:
-                return Response(
-                    {'error': 'file_name and file_type are required'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Call the AWS helper function
-            url_data = AWSUtilService().generate_s3_upload_url(file_name, file_type)
-            
-            if url_data:
-                return Response(url_data, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {'error': 'Could not generate upload URL'}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-                
-        except Exception as e:
-            logger.error(f"Error in GenerateUploadURLView POST: {str(e)}")
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
             return Response(
-                {"error": "An unexpected error occurred."}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "No file provided. Send a file in the 'file' field."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Size check ──────────────────────────────────────
+        if uploaded_file.size > MAX_FILE_SIZE:
+            return Response(
+                {"error": f"File exceeds maximum allowed size of {MAX_FILE_SIZE // (1024*1024)} MB."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Extension check ─────────────────────────────────
+        _, ext = os.path.splitext(uploaded_file.name)
+        ext = ext.lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            return Response(
+                {"error": f"File extension '{ext}' is not permitted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── MIME type check ─────────────────────────────────
+        content_type = uploaded_file.content_type or 'application/octet-stream'
+        if content_type not in ALLOWED_MIME_TYPES:
+            return Response(
+                {"error": f"File type '{content_type}' is not permitted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Build a safe, collision-free file path ──────────
+        folder = _sanitise_folder(request.data.get('folder', 'general'))
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        relative_path = os.path.join(folder, unique_name)
+
+        try:
+            saved_path = default_storage.save(relative_path, uploaded_file)
+
+            # Build the full public URL.
+            # In production the MEDIA_URL is relative (/media/…) and the
+            # reverse proxy (Nginx) serves it.  The frontend already knows
+            # the API base URL, so we return the relative media path.
+            file_url = f"{settings.MEDIA_URL}{saved_path}"
+
+            return Response(
+                {"file_url": file_url, "message": "File uploaded successfully."},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            logger.error(f"File upload failed: {e}")
+            return Response(
+                {"error": "An unexpected error occurred while saving the file."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { authService } from "../Services/authService";
 
-export const useLogin = () => {
+export const useForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [signupSuccess, setSignupSuccess] = useState(false);
-
-  const [isOtpStep, setIsOtpStep] = useState(false);
-  const [emailForOtp, setEmailForOtp] = useState("");
+  
+  // Step 1: "email", Step 2: "otp", Step 3: "password"
+  const [step, setStep] = useState("email");
+  const [emailForReset, setEmailForReset] = useState("");
+  const [otpCode, setOtpCode] = useState("");
 
   const navigate = useNavigate();
-  const location = useLocation();
 
   const extractErrorMessage = (err, defaultMessage = "An error occurred. Please try again.") => {
     if (err.response && err.response.data) {
@@ -35,78 +35,68 @@ export const useLogin = () => {
     return err.message || defaultMessage;
   };
 
-  const executeAuth = async (
-    email,
-    password,
-    isSignup = false,
-    phoneNumber = "",
-  ) => {
+  const requestPasswordReset = async (email) => {
     setIsLoading(true);
     setError(null);
-    setSignupSuccess(false);
 
     try {
-      if (isSignup) {
-        await authService.signUp({
-          email: email,
-          password: password,
-          phone_number: phoneNumber,
-        });
-        setSignupSuccess(true);
-      } else {
-        await authService.loginInitiate({ email, password });
-        setEmailForOtp(email);
-        setIsOtpStep(true);
-      }
+      await authService.passwordResetRequest(email);
+      setEmailForReset(email);
+      setStep("otp");
     } catch (err) {
-      console.error("Authentication failed:", err);
+      console.error("Password reset request failed:", err);
       setError(extractErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const verifyOtp = async (otpCode) => {
+  const verifyOtp = async (otp) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      await authService.loginVerify({
-        email: emailForOtp,
-        otp_code: otpCode,
+      await authService.passwordResetVerify({
+        email: emailForReset,
+        otp_code: otp,
       });
-      const returnTo = location.state?.returnTo || "/";
-      navigate(returnTo, { replace: true });
+      setOtpCode(otp);
+      setStep("password");
     } catch (err) {
-      console.error("OTP Verification failed:", err);
+      console.error("OTP verification failed:", err);
       setError(extractErrorMessage(err, "Invalid OTP code. Please try again."));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
+  const confirmNewPassword = async (newPassword) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      await authService.resendOtp(emailForOtp);
+      await authService.passwordResetConfirm({
+        email: emailForReset,
+        new_password: newPassword,
+      });
+      navigate("/login", { replace: true, state: { resetSuccess: true } });
     } catch (err) {
-      setError(extractErrorMessage(err, "Failed to resend OTP."));
+      console.error("Password confirm failed:", err);
+      setError(extractErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
   return {
-    executeAuth,
+    step,
+    setStep,
+    emailForReset,
+    requestPasswordReset,
     verifyOtp,
-    handleResendOtp,
+    confirmNewPassword,
     isLoading,
     error,
     setError,
-    signupSuccess,
-    setSignupSuccess,
-    isOtpStep,
-    setIsOtpStep,
   };
 };

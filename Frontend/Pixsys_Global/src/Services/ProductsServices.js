@@ -3,8 +3,6 @@ import api from "../api";
 export const fetchProuctsForHeader = async () => {
   try {
     const response = await api.get("products/");
-    console.log("products data fateched", response.data);
-
     return response.data;
   } catch (error) {
     throw new Error(
@@ -16,8 +14,6 @@ export const fetchProuctsForHeader = async () => {
 export const fetchPerticulerProduct = async (product_id) => {
   try {
     const response = await api.get(`products/products/${product_id}`);
-    console.log(response.data);
-
     return response.data;
   } catch (error) {
     throw new Error(error?.response?.data?.message || "product data failed");
@@ -44,4 +40,3 @@ export const fetchCategoryDetails = async (category_id) => {
     );
   }
 };
-

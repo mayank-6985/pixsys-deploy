@@ -14,23 +14,16 @@ export const useHomes = () => {
     setError(null);
 
     try {
-      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-
-      const safeFile = new File([file], cleanFileName, { type: file.type });
-
-      const presignedData = await apiService.getPresignedUrl(
-        safeFile.name,
-        safeFile.type,
+      // Upload directly to backend local storage (replaces old S3 flow)
+      const finalFileUrl = await apiService.uploadFile(
+        file,
+        "slider",
+        setProgress,
       );
 
-      const uploadUrl = presignedData.upload_url;
-      const finalFileUrl = presignedData.file_url;
-
-      if (!uploadUrl || !finalFileUrl) {
-        throw new Error("Backend did not return valid upload URLs.");
+      if (!finalFileUrl) {
+        throw new Error("Backend did not return a valid file URL.");
       }
-
-      await apiService.uploadToS3(uploadUrl, safeFile, setProgress);
 
       const updatedSliderArray = [...currentSliderImages, finalFileUrl];
 
@@ -43,7 +36,7 @@ export const useHomes = () => {
     } catch (err) {
       console.error("Upload process failed:", err);
       setError(
-        err.response?.data?.message || err.message || "Failed to upload image.",
+        err.response?.data?.error || err.message || "Failed to upload image.",
       );
       setIsUploading(false);
       throw err;

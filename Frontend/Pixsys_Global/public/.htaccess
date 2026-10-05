@@ -1,6 +1,12 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # Send all API requests to our custom PHP proxy script
+  # The QSA flag ensures query parameters (like ?search=xyz) are kept
+  RewriteRule ^v1/api/(.*)$ proxy.php?endpoint=$1 [QSA,L]
+
+  # React Router fallback
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

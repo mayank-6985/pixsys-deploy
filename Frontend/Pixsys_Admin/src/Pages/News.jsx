@@ -11,7 +11,31 @@ import {
 import { Loader2, X } from "lucide-react";
 import { useAdminNews, useNewsMutations } from "../hooks/useNews";
 import { fetchNewsById } from "../Services/news";
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
+
+const MessageBanner = ({ type, text, onClose }) => {
+  if (!text) return null;
+  const isError = type === "error";
+  return (
+    <div
+      className={`mb-4 p-4 text-sm font-medium flex justify-between items-center ${
+        isError
+          ? "bg-red-50 border-l-4 border-[#da0e19] text-[#da0e19]"
+          : "bg-green-50 border-l-4 border-green-600 text-green-700"
+      }`}
+    >
+      <span>{text}</span>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="opacity-70 hover:opacity-100 text-lg leading-none"
+        >
+          &times;
+        </button>
+      )}
+    </div>
+  );
+};
 
 const initialFormState = {
   date: new Date().toISOString().split("T")[0],
@@ -27,6 +51,10 @@ const News = () => {
   const [isFetchingDetail, setIsFetchingDetail] = useState(false);
   const { data: newsList = [], isLoading: isListLoading } = useAdminNews();
   const { createMutation, updateMutation, deleteMutation } = useNewsMutations();
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [pageMessage, setPageMessage] = useState({ type: "", text: "" });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const hasError = createMutation.isError || updateMutation.isError;
@@ -46,6 +74,7 @@ const News = () => {
   const handleOpenEdit = async (id) => {
     resetMutations();
     setIsFetchingDetail(true);
+    setPageMessage({ type: "", text: "" });
     setView("form");
     setEditingId(id);
     try {
@@ -60,21 +89,43 @@ const News = () => {
           : initialFormState.content,
       });
     } catch (error) {
-      alert(
-        "Something went wrong while fetching news details. Please try again.",
-      );
+      setPageMessage({
+        type: "error",
+        text: "Something went wrong while fetching news details. Please try again.",
+      });
       setView("list");
     } finally {
       setIsFetchingDetail(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    const errorMsg =
-      "Something went wrong while trying to delete this item. Please try again.";
-    if (window.confirm("Are you sure you want to delete this news article?")) {
-      deleteMutation.mutate(id, { onError: () => alert(errorMsg) });
-    }
+  const initiateDelete = (id) => {
+    setPageMessage({ type: "", text: "" });
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirmId) return;
+    setIsDeleting(true);
+
+    deleteMutation.mutate(deleteConfirmId, {
+      onSuccess: () => {
+        setPageMessage({
+          type: "success",
+          text: "News article deleted successfully.",
+        });
+        setDeleteConfirmId(null);
+        setIsDeleting(false);
+      },
+      onError: () => {
+        setPageMessage({
+          type: "error",
+          text: "Something went wrong while trying to delete this item. Please try again.",
+        });
+        setDeleteConfirmId(null);
+        setIsDeleting(false);
+      },
+    });
   };
 
   const handleBasicChange = (e) => {
@@ -148,7 +199,53 @@ const News = () => {
 
   if (view === "list") {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6">
+      <div className="min-h-screen bg-[#f8f9fa] p-4 sm:p-6 lg:p-8 w-full font-sans flex flex-col gap-6 relative">
+        {/* CUSTOM DELETE MODAL */}
+        {deleteConfirmId !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 transition-opacity">
+            <div className="bg-white w-full max-w-md shadow-xl flex flex-col">
+              <div className="bg-[#1a1a1a] px-6 py-4 flex justify-between items-center">
+                <h3 className="text-white font-bold tracking-widest uppercase text-sm">
+                  Confirm Delete
+                </h3>
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <div className="p-8 text-center bg-white">
+                <p className="text-zinc-700 text-sm font-medium">
+                  Are you sure you want to delete this news article?
+                </p>
+              </div>
+
+              <div className="px-6 py-4 flex justify-center gap-4 bg-white border-t border-zinc-100">
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-6 py-2.5 border border-zinc-300 text-zinc-700 font-bold uppercase tracking-widest text-xs hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[#da0e19] hover:bg-red-700 text-white font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-70"
+                >
+                  {isDeleting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <FiTrash2 size={14} />
+                  )}
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white border border-zinc-200 shadow-sm flex flex-col overflow-hidden">
           <div className="px-6 py-4 flex justify-between items-center border-b border-zinc-200 bg-zinc-900 text-white">
             <h1 className="text-sm font-bold uppercase tracking-widest">
@@ -160,6 +257,15 @@ const News = () => {
             >
               <FiPlus size={16} /> Add New News
             </button>
+          </div>
+
+          {/* MESSAGE BANNER INTEGRATION */}
+          <div className="px-6 pt-4">
+            <MessageBanner
+              type={pageMessage.type}
+              text={pageMessage.text}
+              onClose={() => setPageMessage({ type: "", text: "" })}
+            />
           </div>
 
           <div className="overflow-x-auto w-full">
@@ -202,8 +308,8 @@ const News = () => {
                           <FiEdit2 size={16} />
                         </button>
                         <button
-                          onClick={() => handleDelete(item.news_id)}
-                          disabled={deleteMutation.isPending}
+                          onClick={() => initiateDelete(item.news_id)}
+                          disabled={isDeleting || deleteMutation.isPending}
                           className="p-2 text-zinc-400 hover:text-[#da0e19] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Delete"
                         >
@@ -292,7 +398,7 @@ const News = () => {
                 />
               </div>
               <div>
-                <S3Uploader
+                <FileUploader
                   label="News Thumbnail *"
                   accept="image/jpeg, image/png, image/webp"
                   folder="news/thumbnails"
@@ -375,7 +481,7 @@ const News = () => {
                         ) : (
                           <div className="space-y-4">
                             <div>
-                              <S3Uploader
+                              <FileUploader
                                 label="Block Image *"
                                 accept="image/jpeg, image/png, image/webp"
                                 folder="news/content"

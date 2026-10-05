@@ -6,8 +6,8 @@ import { Link } from "react-router-dom";
 import { useProducts, useCategoryDetails } from "../hooks/useProducts";
 import { useAllDownloads } from "../hooks/useDownload";
 import { authService } from "../Services/authService";
-import { useNavigate } from "react-router-dom";
-
+import { useNavigate, useLocation } from "react-router-dom";
+import api from "../api";
 const Downloads = () => {
   const { data: mainCategories, isLoading: isCatLoading } = useProducts();
   const { data: rawDownloads, isLoading: isDlLoading } = useAllDownloads();
@@ -16,8 +16,10 @@ const Downloads = () => {
   const [selectedSub, setSelectedSub] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [selectedProd, setSelectedProd] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState({});
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { data: categoryDetails } = useCategoryDetails(selectedCat);
 
@@ -41,10 +43,21 @@ const Downloads = () => {
     setSelectedProd("");
   };
 
+  // const handleSecureAction = (e, callback) => {
+  //   if (!authService.getAccessToken()) {
+  //     e.preventDefault();
+  //     navigate("/login", { state: { returnTo: window.location.pathname } });
+  //     return;
+  //   }
+  //   if (callback) callback();
+  // };
+
   const handleSecureAction = (e, callback) => {
     if (!authService.getAccessToken()) {
       e.preventDefault();
-      navigate("/login", { state: { returnTo: window.location.pathname } });
+      const fullCurrentUrl = location.pathname + location.search;
+
+      navigate("/login", { state: { returnTo: fullCurrentUrl } });
       return;
     }
     if (callback) callback();
@@ -146,18 +159,48 @@ const Downloads = () => {
     return `Product ID: ${productId}`;
   };
 
-  const filteredDownloads = useMemo(() => {
-    if (
-      !selectedCat &&
-      !selectedSub &&
-      !selectedTag &&
-      !selectedProd &&
-      selectedTypes.length === 0
-    ) {
-      return allDownloads;
-    }
+  // const filteredDownloads = useMemo(() => {
+  //   if (
+  //     !selectedCat &&
+  //     !selectedSub &&
+  //     !selectedTag &&
+  //     !selectedProd &&
+  //     selectedTypes.length === 0
+  //   ) {
+  //     return allDownloads;
+  //   }
 
-    return allDownloads.filter((doc) => {
+  //   return allDownloads.filter((doc) => {
+  //     if (selectedCat && String(doc.category_id) !== String(selectedCat))
+  //       return false;
+  //     if (selectedSub && String(doc.subcategory_id) !== String(selectedSub))
+  //       return false;
+  //     if (selectedTag && String(doc.tag_id) !== String(selectedTag))
+  //       return false;
+  //     if (selectedProd && String(doc.product_id) !== String(selectedProd))
+  //       return false;
+
+  //     if (
+  //       selectedTypes.length > 0 &&
+  //       !selectedTypes.includes(doc.resource_type)
+  //     )
+  //       return false;
+
+  //     return true;
+  //   });
+  // }, [
+  //   allDownloads,
+  //   selectedCat,
+  //   selectedSub,
+  //   selectedTag,
+  //   selectedProd,
+  //   selectedTypes,
+  // ]);
+
+
+
+  const filteredDownloads = useMemo(() => {
+    const baseFiltered = allDownloads.filter((doc) => {
       if (selectedCat && String(doc.category_id) !== String(selectedCat))
         return false;
       if (selectedSub && String(doc.subcategory_id) !== String(selectedSub))
@@ -166,7 +209,6 @@ const Downloads = () => {
         return false;
       if (selectedProd && String(doc.product_id) !== String(selectedProd))
         return false;
-
       if (
         selectedTypes.length > 0 &&
         !selectedTypes.includes(doc.resource_type)
@@ -175,6 +217,18 @@ const Downloads = () => {
 
       return true;
     });
+
+    const downloadsHashMap = new Map();
+
+    for (const doc of baseFiltered) {
+      const hashKey = doc.name ? doc.name.trim().toLowerCase() : doc.resource_url;
+
+      if (!downloadsHashMap.has(hashKey)) {
+        downloadsHashMap.set(hashKey, doc);
+      }
+    }
+
+    return Array.from(downloadsHashMap.values());
   }, [
     allDownloads,
     selectedCat,
@@ -183,6 +237,7 @@ const Downloads = () => {
     selectedProd,
     selectedTypes,
   ]);
+
 
   const groupedDownloads = useMemo(() => {
     const groups = {};
@@ -194,28 +249,100 @@ const Downloads = () => {
   }, [filteredDownloads]);
 
   const forceDownload = async (url, customFilename) => {
+    const fileId = url;
+
     try {
-      const response = await fetch(url, { method: "GET" });
-      if (!response.ok) throw new Error("Failed to fetch file");
+      setDownloadProgress((prev) => ({ ...prev, [fileId]: 0 }));
 
-      const blob = await response.blob();
-
+      const response = await api.get(url, {
+        responseType: "blob",
+        onDownloadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) /
+            (progressEvent.total || progressEvent.loaded),
+          );
+          setDownloadProgress((prev) => ({
+            ...prev,
+            [fileId]: percentCompleted,
+          }));
+        },
+      });
+      const blob = new Blob([response.data], {
+        type: "application/octet-stream",
+      });
       const blobUrl = window.URL.createObjectURL(blob);
+      const rawExtension = url.split(/[#?]/)[0].split(".").pop().trim();
+      let finalFilename = customFilename || "download";
+
+      if (
+        rawExtension &&
+        !finalFilename.toLowerCase().endsWith(`.${rawExtension.toLowerCase()}`)
+      ) {
+        finalFilename = `${finalFilename}.${rawExtension}`;
+      }
 
       const link = document.createElement("a");
       link.href = blobUrl;
-
-      link.download =
-        customFilename || url.split("/").pop().split("?")[0] || "download";
+      link.setAttribute("download", finalFilename);
 
       document.body.appendChild(link);
       link.click();
 
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
+
+      setTimeout(() => {
+        setDownloadProgress((prev) => {
+          const newState = { ...prev };
+          delete newState[fileId];
+          return newState;
+        });
+      }, 1000);
     } catch (error) {
-      console.error("Forced download failed, falling back to new tab:", error);
+      console.error("Download failed:", error);
+      setDownloadProgress((prev) => {
+        const newState = { ...prev };
+        delete newState[fileId];
+        return newState;
+      });
+      // Fallback
       window.open(url, "_blank");
+    }
+  };
+
+  const getMimeType = (url) => {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes(".pdf")) return "application/pdf";
+    if (lowerUrl.includes(".jpg") || lowerUrl.includes(".jpeg"))
+      return "image/jpeg";
+    if (lowerUrl.includes(".png")) return "image/png";
+    if (lowerUrl.includes(".txt")) return "text/plain";
+    return null;
+  };
+
+  const forceView = async (url) => {
+    const newTab = window.open("", "_blank");
+    if (!newTab) {
+      alert("Please allow pop-ups for this site to view documents.");
+      return;
+    }
+
+    newTab.document.write(
+      "<html style='height:100%; display:flex; justify-content:center; align-items:center; background:#fafafa; font-family:sans-serif;'><h2>Loading secure document...</h2></html>",
+    );
+
+    try {
+      const response = await api.get(url, { responseType: "blob" });
+
+      const blobType =
+        getMimeType(url) || response.data.type || "application/pdf";
+      const blob = new Blob([response.data], { type: blobType });
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      newTab.location.href = blobUrl;
+    } catch (error) {
+      console.error("Secure view failed. Falling back to direct URL.", error);
+      newTab.location.href = url;
     }
   };
 
@@ -378,9 +505,9 @@ const Downloads = () => {
                           <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[50%]">
                             Document Details
                           </th>
-                          <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[20%]">
+                          {/* <th className="px-6 py-4 text-sm font-semibold text-gray-500 w-[20%]">
                             Product ID
-                          </th>
+                          </th> */}
                           <th className="px-6 py-4 text-sm font-semibold text-gray-500 text-right w-[30%]">
                             Action
                           </th>
@@ -398,40 +525,62 @@ const Downloads = () => {
                               </div>
                             </td>
 
-                            <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 text-sm font-mono text-gray-500 mb-4 md:mb-0 border-b border-gray-100 md:border-none pb-4 md:pb-0 align-middle">
+                            {/* <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 text-sm font-mono text-gray-500 mb-4 md:mb-0 border-b border-gray-100 md:border-none pb-4 md:pb-0 align-middle">
                               <span className="md:hidden text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">
                                 Product:
                               </span>
                               {getProductName(doc.product_id)}
-                            </td>
+                            </td> */}
 
                             <td className="w-full md:w-auto block md:table-cell md:px-6 md:py-4 pt-4 md:pt-0 align-middle">
                               <div className="flex items-center md:justify-end gap-3 w-full">
-                                <a
+                                <button
+                                  onClick={(e) =>
+                                    handleSecureAction(e, () =>
+                                      forceView(doc.resource_url),
+                                    )
+                                  }
+                                  // onClick={() => forceView(doc.resource_url)}
                                   className="flex-1 md:flex-none inline-flex justify-center items-center gap-2 px-4 py-2.5 md:py-2 rounded border border-gray-300 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] transition-all text-xs font-bold uppercase tracking-widest bg-gray-50 hover:bg-white"
-                                  href={doc.resource_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => handleSecureAction(e)}
                                 >
                                   <FiEye size={14} />
                                   <span>View</span>
-                                </a>
+                                </button>
                                 <button
                                   onClick={(e) =>
                                     handleSecureAction(e, () =>
                                       forceDownload(doc.resource_url, doc.name),
                                     )
                                   }
-                                  className="flex-1 md:flex-none inline-flex justify-center items-center gap-2 px-4 py-2.5 md:py-2 bg-white border border-gray-200 text-gray-700 rounded text-xs md:text-sm font-bold group-hover:border-[#da0e19] group-hover:text-[#da0e19] shadow-sm hover:shadow transition-all"
+                                  // onClick={() =>
+                                  //   forceDownload(doc.resource_url, doc.name)
+                                  // }
+                                  disabled={
+                                    downloadProgress[doc.resource_url] !==
+                                    undefined
+                                  }
+                                  className={`flex-1 md:flex-none inline-flex justify-center items-center gap-2 px-4 py-2.5 md:py-2 bg-white border rounded text-xs md:text-sm font-bold shadow-sm transition-all ${downloadProgress[doc.resource_url] !==
+                                    undefined
+                                    ? "border-gray-300 text-[#da0e19] cursor-wait"
+                                    : "border-gray-200 text-gray-700 hover:border-[#da0e19] hover:text-[#da0e19] hover:shadow"
+                                    }`}
                                 >
-                                  <span className="hidden sm:inline">
-                                    Download
-                                  </span>
-                                  <span className="sm:hidden uppercase tracking-widest text-xs">
-                                    Save
-                                  </span>
-                                  <HiOutlineDownload className="text-lg" />
+                                  {downloadProgress[doc.resource_url] !==
+                                    undefined ? (
+                                    <span className="animate-pulse">
+                                      {downloadProgress[doc.resource_url]}%
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span className="hidden sm:inline">
+                                        Download
+                                      </span>
+                                      <span className="sm:hidden uppercase tracking-widest text-xs">
+                                        Save
+                                      </span>
+                                      <HiOutlineDownload className="text-lg" />
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </td>

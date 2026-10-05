@@ -186,11 +186,11 @@ const Solutions = () => {
   return (
     <div className="min-h-screen bg-white relative">
       <section className="relative w-full h-[300px] md:h-[400px] bg-gray-900 overflow-hidden">
-        <img
+        {/* <img
           src="https://images.unsplash.com/photo-1555664424-778a1e5e1b48?auto=format&fit=crop&q=80"
           alt="Keyboard"
           className="absolute inset-0 w-full h-full object-cover opacity-60"
-        />
+        /> */}
         <div className="absolute top-1/2 left-10 md:left-24 -translate-y-1/2 z-10">
           <h1 className="text-4xl md:text-5xl font-bold text-white tracking-wide">
             Solutions

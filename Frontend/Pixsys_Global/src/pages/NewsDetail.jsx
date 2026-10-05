@@ -111,7 +111,7 @@ const NewsDetail = () => {
                 {article.date?.replace(/-/g, ".")}
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* <div className="flex items-center gap-3">
                 <a
                   href="#"
                   className="w-8 h-8 rounded-full border border-[#da0f1a] text-[#da0f1a] flex items-center justify-center hover:bg-[#da0f1a] hover:text-white transition-colors"
@@ -136,7 +136,7 @@ const NewsDetail = () => {
                 >
                   <FaInstagram size={14} />
                 </a>
-              </div>
+              </div> */}
             </div>
 
             {article.thumbnail && (

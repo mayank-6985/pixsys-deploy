@@ -4,10 +4,10 @@ import { authService } from "./src/Services/authService";
 const api = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/v1/api/`,
   headers: {
-    "ngrok-skip-browser-warning": "true",
+    // "ngrok-skip-browser-warning": "true",
+    "Content-Type": "application/json",
   },
 });
-
 
 api.interceptors.request.use(
   (config) => {

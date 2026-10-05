@@ -1,38 +1,55 @@
 import api from "../api";
 
+const TOKEN_KEYS = {
+  ACCESS: "global_accessToken",
+  REFRESH: "global_refreshToken",
+};
+
 export const authService = {
-  getAccessToken: () => localStorage.getItem("accessToken"),
-  getRefreshToken: () => localStorage.getItem("refreshToken"),
+  getAccessToken: () => localStorage.getItem(TOKEN_KEYS.ACCESS),
+  getRefreshToken: () => localStorage.getItem(TOKEN_KEYS.REFRESH),
 
   setTokens: (accessToken, refreshToken) => {
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
+    if (accessToken) localStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
+    if (refreshToken) localStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken);
   },
 
   clearTokens: () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    localStorage.removeItem(TOKEN_KEYS.ACCESS);
+    localStorage.removeItem(TOKEN_KEYS.REFRESH);
   },
 
-  login: async (credentials) => {
-    const response = await api.post(`auth/customer/login/`, credentials);
+  signUp: async (data) => {
+    const response = await api.post(`auth/customer/signup/`, data);
+    return response.data;
+  },
 
-    const accessToken = response.data.access || response.data.accessToken;
-    const refreshToken = response.data.refresh || response.data.refreshToken;
+  loginInitiate: async (credentials) => {
+    const response = await api.post(
+      `auth/customer/login/initiate/`,
+      credentials,
+    );
+    return response.data;
+  },
+
+  loginVerify: async (data) => {
+    const response = await api.post(`auth/customer/login/verify/`, data);
+
+    const accessToken = response.data?.access || response.data?.accessToken;
+    const refreshToken = response.data?.refresh || response.data?.refreshToken;
 
     if (!accessToken) {
-      console.error("Backend Response Data:", response.data);
-      throw new Error(
-        "Token keys did not match backend response. Check console.",
-      );
+      throw new Error("Token keys did not match backend response.");
     }
 
     authService.setTokens(accessToken, refreshToken);
     return response.data;
   },
 
-  signUp: async (credentials) => {
-    const response = await api.post("auth/customer/signup/", credentials);
+  resendOtp: async (email) => {
+    const response = await api.post(`auth/customer/otp/resend/`, {
+      email,
+    });
     return response.data;
   },
 
@@ -40,21 +57,34 @@ export const authService = {
     const currentRefresh = authService.getRefreshToken();
     if (!currentRefresh) throw new Error("No refresh token available");
 
-    const response = await api.post(`auth/token/refresh/`, {
+    const response = await api.post(`auth/refresh/`, {
       refresh: currentRefresh,
     });
 
-    const newAccessToken = response.data.access || response.data.accessToken;
+    const newAccessToken = response.data?.access || response.data?.accessToken;
     const newRefreshToken =
-      response.data.refresh || response.data.refreshToken || currentRefresh;
+      response.data?.refresh || response.data?.refreshToken || currentRefresh;
 
     authService.setTokens(newAccessToken, newRefreshToken);
-
     return newAccessToken;
+  },
+
+  passwordResetRequest: async (email) => {
+    const response = await api.post(`auth/customer/password/reset/request/`, { email });
+    return response.data;
+  },
+
+  passwordResetVerify: async (data) => {
+    const response = await api.post(`auth/customer/password/reset/verify/`, data);
+    return response.data;
+  },
+
+  passwordResetConfirm: async (data) => {
+    const response = await api.post(`auth/customer/password/reset/confirm/`, data);
+    return response.data;
   },
 
   logout: () => {
     authService.clearTokens();
-    window.location.href = "/login";
   },
 };

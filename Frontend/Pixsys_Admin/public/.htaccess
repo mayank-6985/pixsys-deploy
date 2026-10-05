@@ -1,8 +1,14 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /
-  RewriteRule ^index\.html$ - [L]
+  
+  # Explicitly allow symbolic links and overrides
+  Options +FollowSymLinks -MultiViews
+
+  # 1. Send API requests to proxy.php
+  RewriteRule ^v1/api/(.*)$ proxy.php?endpoint=$1 [QSA,L]
+
+  # 2. React Router Fallback
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+  RewriteRule ^ index.html [QSA,L]
 </IfModule>

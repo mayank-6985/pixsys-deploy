@@ -16,7 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -42,7 +43,12 @@ urlpatterns = [
     path('v1/api/downloads/' , include("apps.Download.urls")),
     path('v1/api/contactus/' , include("apps.Contact.urls")),
     path('v1/api/search/' ,include('apps.Search.urls')),
+
+    # File upload endpoint (replaces the old S3 presigned-URL flow)
     path('v1/api/utils/', include('apps.Utils.urls')),
-    path('v1/api/customer/', include('apps.Customers.urls')),
-    path('v1/api/analytics/', include('apps.Tracking.urls')),
 ]
+
+# Serve user-uploaded media files.
+# In production, Nginx should handle /media/ directly; this is a fallback.
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
