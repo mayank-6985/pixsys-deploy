@@ -29,7 +29,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # csrf setup
-CSRF_ALLOWED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = [
     "https://unsettled-manual-dynasty.ngrok-free.dev",
     "https://tragicomical-epileptically-davin.ngrok-free.dev",
     "http://localhost",
@@ -48,17 +48,17 @@ CORS_ALLOW_HEADERS = (
 
 # AWS SETUP
 
-# AWS S3 Settings
-AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME')
+# AWS S3 Settings (Commented out to use local storage as requested)
+# AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default='dummy')
+# AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default='dummy')
+# AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='dummy')
+# AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='dummy')
 
 # Optional: Set signature version explicitly for presigned URLs
-AWS_S3_SIGNATURE_VERSION = 's3v4'
-AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',  # Cache for a day
-    'StorageClass': 'STANDARD'  # Pick your storage flavor
-}
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# AWS_S3_SIGNATURE_VERSION = 's3v4'
+# AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+# AWS_S3_OBJECT_PARAMETERS = {
+#     'CacheControl': 'max-age=86400',  # Cache for a day
+#     'StorageClass': 'STANDARD'  # Pick your storage flavor
+# }
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'

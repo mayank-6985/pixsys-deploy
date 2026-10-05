@@ -17,11 +17,19 @@ DATABASES = {
 CORS_ALLOW_CREDENTIALS=False
 
 CORS_ALLOWED_ORIGINS = [
-    'pixsysglobal.com',  
-    'https://www.pixsysglobal.com',  
+    'https://pixsysglobal.com',
+    'https://www.pixsysglobal.com',
+    'http://pixsysglobal.com',
+    'http://www.pixsysglobal.com',
+    'http://api.pixsysglobal.com',
+    'https://api.pixsysglobal.com'
 ]
 
-CSRF_ALLOWED_ORIGINS = [
-    'pixsysglobal.com',
+CSRF_TRUSTED_ORIGINS = [
+    'https://pixsysglobal.com',
     'https://www.pixsysglobal.com',
+    'http://pixsysglobal.com',
+    'http://www.pixsysglobal.com',
+    'http://api.pixsysglobal.com',
+    'https://api.pixsysglobal.com'
 ]
