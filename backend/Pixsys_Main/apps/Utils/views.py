@@ -153,11 +153,9 @@ class FileUploadView(APIView):
         try:
             saved_path = default_storage.save(relative_path, uploaded_file)
 
-            # Build the full public URL.
-            # In production the MEDIA_URL is relative (/media/…) and the
-            # reverse proxy (Nginx) serves it.  The frontend already knows
-            # the API base URL, so we return the relative media path.
-            file_url = f"{settings.MEDIA_URL}{saved_path}"
+            # Build the full absolute public URL based on the request's host
+            relative_url = f"{settings.MEDIA_URL}{saved_path}"
+            file_url = request.build_absolute_uri(relative_url)
 
             return Response(
                 {"file_url": file_url, "message": "File uploaded successfully."},

@@ -42,10 +42,8 @@ export const apiService = {
       },
     });
 
-    // The backend returns { file_url: "/media/folder/uuid.ext", message: "..." }
-    // Construct the full URL using the API base URL.
-    const relativeUrl = response.data.file_url;
-    const apiBase = import.meta.env.VITE_API_URL || "";
-    return `${apiBase}${relativeUrl}`;
+    // The backend now returns an absolute URL (e.g. https://api.pixsysglobal.com/media/...)
+    // We can just use it directly.
+    return response.data.file_url;
   },
 };
