@@ -22,7 +22,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://pixsysglobal.com',
     'http://www.pixsysglobal.com',
     'http://api.pixsysglobal.com',
-    'https://api.pixsysglobal.com'
+    'https://api.pixsysglobal.com',
+    'https://admin.pixsysglobal.com',
+    'http://admin.pixsysglobal.com'
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -31,5 +33,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://pixsysglobal.com',
     'http://www.pixsysglobal.com',
     'http://api.pixsysglobal.com',
-    'https://api.pixsysglobal.com'
+    'https://api.pixsysglobal.com',
+    'https://admin.pixsysglobal.com',
+    'http://admin.pixsysglobal.com'
 ]

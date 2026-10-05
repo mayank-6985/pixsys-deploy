@@ -25,7 +25,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1",
     "http://localhost:5173",
     "https://pixsysglobal.com",
-    "https://pixsys.onrender.com"
+    "https://pixsys.onrender.com",
+    "https://admin.pixsysglobal.com",
+    "http://admin.pixsysglobal.com"
 ]
 
 # csrf setup
@@ -35,7 +37,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:5173",
-    "https://pixsys.onrender.com"
+    "https://pixsys.onrender.com",
+    "https://admin.pixsysglobal.com",
+    "http://admin.pixsysglobal.com"
 ]
 
 
