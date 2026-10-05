@@ -14,13 +14,14 @@ DATABASES = {
 }
 
 # cors configuration
-CORS_ALLOW_CREDENTIALS=True
+CORS_ALLOW_CREDENTIALS=False
 
 CORS_ALLOWED_ORIGINS = [
-    'pixsysglobal.com',    
+    'pixsysglobal.com',  
+    'https://www.pixsysglobal.com',  
 ]
 
 CSRF_ALLOWED_ORIGINS = [
     'pixsysglobal.com',
+    'https://www.pixsysglobal.com',
 ]
-0

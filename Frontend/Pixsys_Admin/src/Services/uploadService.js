@@ -1,5 +1,4 @@
 import api from "../../api";
-import axios from "axios";
 
 export const apiService = {
   getSliderImages: async () => {
@@ -14,22 +13,27 @@ export const apiService = {
     return response.data;
   },
 
-  getPresignedUrl: async (fileName, fileType, folderName = "misc") => {
-    const response = await api.post(`utils/generate-upload-url/`, {
-      file_name: fileName,
-      file_type: fileType,
-      folder: folderName,
-    });
-    return response.data;
-  },
+  /**
+   * Upload a file directly to the backend's local storage.
+   * Replaces the old S3 presigned-URL → PUT flow with a single
+   * multipart/form-data POST to /v1/api/utils/upload/.
+   *
+   * @param {File}     file        - The file object to upload.
+   * @param {string}   folderName  - Sub-folder inside /media/ (e.g. "news", "products").
+   * @param {Function} onProgress  - Optional callback receiving upload percentage (0-100).
+   * @returns {string} The public URL of the uploaded file.
+   */
+  uploadFile: async (file, folderName = "general", onProgress) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folderName);
 
-  uploadToS3: async (uploadUrl, file, onProgress) => {
-    await axios.put(uploadUrl, file, {
+    const response = await api.post("utils/upload/", formData, {
       headers: {
-        "Content-Type": file.type,
+        "Content-Type": "multipart/form-data",
       },
       onUploadProgress: (progressEvent) => {
-        if (onProgress) {
+        if (onProgress && progressEvent.total) {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / progressEvent.total,
           );
@@ -37,5 +41,11 @@ export const apiService = {
         }
       },
     });
+
+    // The backend returns { file_url: "/media/folder/uuid.ext", message: "..." }
+    // Construct the full URL using the API base URL.
+    const relativeUrl = response.data.file_url;
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    return `${apiBase}${relativeUrl}`;
   },
 };

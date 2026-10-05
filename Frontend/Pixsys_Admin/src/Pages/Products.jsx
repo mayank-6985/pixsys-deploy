@@ -11,7 +11,7 @@ import {
   useCategoryDetails,
   useProductDetail,
 } from "../hooks/useProducts";
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
 
 const emptyCategory = {
   category_name: "",
@@ -494,7 +494,7 @@ const Products = () => {
                   </div>
 
                   <div>
-                    <S3Uploader
+                    <FileUploader
                       label="Category Image *"
                       accept="image/jpeg, image/png, image/webp"
                       folder="categories"
@@ -544,7 +544,7 @@ const Products = () => {
                     />
                   </div>
                   <div>
-                    <S3Uploader
+                    <FileUploader
                       label="Subcategory Image *"
                       accept="image/jpeg, image/png, image/webp"
                       folder="subcategories"
@@ -628,7 +628,7 @@ const Products = () => {
                   </div>
 
                   <div>
-                    <S3Uploader
+                    <FileUploader
                       label="Product Image *"
                       accept="image/jpeg, image/png, image/webp"
                       folder="products"
@@ -665,7 +665,7 @@ const Products = () => {
                         className="flex gap-4 items-start mb-4 p-4 bg-zinc-50 border border-zinc-200 relative"
                       >
                         <div className="flex-1">
-                          <S3Uploader
+                          <FileUploader
                             label={`Specification Image ${index + 1}`}
                             accept="image/jpeg, image/png, image/webp"
                             folder="products/specifications"

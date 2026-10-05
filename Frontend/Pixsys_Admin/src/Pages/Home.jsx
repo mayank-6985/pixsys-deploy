@@ -412,7 +412,7 @@ const Home = () => {
             {isUploading && (
               <div className="mt-4 p-4 border border-zinc-200 bg-zinc-50">
                 <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                  <span>Uploading to S3...</span>
+                  <span>Uploading...</span>
                   <span className="text-[#da0e19]">{progress}%</span>
                 </div>
                 <div className="w-full bg-zinc-200 h-1.5">

@@ -6,7 +6,7 @@ import {
   useCategoryMutations,
   useSolutionMutations,
 } from "../hooks/useSolutions";
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
 
 const MessageBanner = ({ type, text, onClose }) => {
   if (!text) return null;
@@ -259,7 +259,7 @@ const Solutions = () => {
                   />
                 </div>
                 <div>
-                  <S3Uploader
+                  <FileUploader
                     label="Category Thumbnail *"
                     accept="image/*"
                     folder="solutions/categories"
@@ -351,7 +351,7 @@ const Solutions = () => {
                   />
                 </div>
                 <div>
-                  <S3Uploader
+                  <FileUploader
                     label="Solution Thumbnail *"
                     accept="image/*"
                     folder="solutions/thumbnails"

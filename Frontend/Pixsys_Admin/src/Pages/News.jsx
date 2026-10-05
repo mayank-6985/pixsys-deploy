@@ -11,7 +11,7 @@ import {
 import { Loader2, X } from "lucide-react";
 import { useAdminNews, useNewsMutations } from "../hooks/useNews";
 import { fetchNewsById } from "../Services/news";
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
 
 const MessageBanner = ({ type, text, onClose }) => {
   if (!text) return null;
@@ -398,7 +398,7 @@ const News = () => {
                 />
               </div>
               <div>
-                <S3Uploader
+                <FileUploader
                   label="News Thumbnail *"
                   accept="image/jpeg, image/png, image/webp"
                   folder="news/thumbnails"
@@ -481,7 +481,7 @@ const News = () => {
                         ) : (
                           <div className="space-y-4">
                             <div>
-                              <S3Uploader
+                              <FileUploader
                                 label="Block Image *"
                                 accept="image/jpeg, image/png, image/webp"
                                 folder="news/content"

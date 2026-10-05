@@ -19,7 +19,7 @@ import {
 } from "../hooks/useDownloads";
 import { useAdminProductsData, useCategoryDetails } from "../hooks/useProducts";
 
-import S3Uploader from "../Components/S3Uploader";
+import FileUploader from "../Components/FileUploader";
 
 const emptyDownload = {
   product_id: "",
@@ -551,7 +551,7 @@ const Download = () => {
                   </div>
 
                   <div>
-                    <S3Uploader
+                    <FileUploader
                       label="Upload Thumbnail *"
                       accept="image/*"
                       folder="thumbnails"
@@ -572,7 +572,7 @@ const Download = () => {
 
               {/* THIRD ROW: Resource URL Upload */}
               <div className="pt-6 border-t border-zinc-200">
-                <S3Uploader
+                <FileUploader
                   label={`Upload ${formData.resource_type.replace("_", " ")} File *`}
                   accept={
                     formData.resource_type.includes("SOFTWARE")

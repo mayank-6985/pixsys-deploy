@@ -32,7 +32,7 @@ export const useSecureFile = () => {
         const response = await fetch(url, { method: "GET", headers });
         */
 
-        // Current standard fetch (if files are on a public CDN like AWS S3)
+        // Standard fetch for files served from the backend's local media storage
         const response = await fetch(url, { method: "GET" });
         if (!response.ok) throw new Error("Failed to fetch file");
 
