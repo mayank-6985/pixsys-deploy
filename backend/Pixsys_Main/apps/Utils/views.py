@@ -148,16 +148,20 @@ class FileUploadView(APIView):
         # ── Build a safe, collision-free file path ──────────
         folder = _sanitise_folder(request.data.get('folder', 'general'))
         unique_name = f"{uuid.uuid4().hex}{ext}"
+        
+        # Always use forward slashes for URLs, regardless of OS
+        from posixpath import join as urljoin
         relative_path = os.path.join(folder, unique_name)
 
         try:
             saved_path = default_storage.save(relative_path, uploaded_file)
 
-            # Build the full public URL.
-            # In production the MEDIA_URL is relative (/media/…) and the
-            # reverse proxy (Nginx) serves it.  The frontend already knows
-            # the API base URL, so we return the relative media path.
-            file_url = f"{settings.MEDIA_URL}{saved_path}"
+            # Ensure we use forward slashes for the web URL
+            web_path = saved_path.replace('\\', '/')
+            relative_url = urljoin(settings.MEDIA_URL, web_path)
+
+            # If you want absolute URL:
+            file_url = request.build_absolute_uri(relative_url)
 
             return Response(
                 {"file_url": file_url, "message": "File uploaded successfully."},
