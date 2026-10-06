@@ -48,7 +48,15 @@ urlpatterns = [
     path('v1/api/utils/', include('apps.Utils.urls')),
 ]
 
+from django.urls import re_path
+from django.views.static import serve
+
 # Serve user-uploaded media files.
-# In production, Nginx should handle /media/ directly; this is a fallback.
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# In production, Nginx should handle /media/ directly, but if it returns 403 or DEBUG=False prevents it,
+# we force Django to serve the files.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {
+        'document_root': settings.MEDIA_ROOT,
+    }),
+]
 
