@@ -33,17 +33,19 @@ logger = logging.getLogger(__name__)
 ALLOWED_MIME_TYPES = {
     # Images
     'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/bmp', 'image/tiff', 'image/heic', 'image/heif', 'image/x-icon',
     'image/vnd.dxf', 'image/vnd.dwg',
     # Documents / archives
     'application/pdf',
-    'application/zip', 'application/x-zip-compressed',
-    'application/vnd.rar', 'application/x-rar-compressed',
-    'application/x-7z-compressed',
-    'application/xml', 'text/xml',
+    'application/zip', 'application/x-zip-compressed', 'application/zip-compressed', 'application/x-zip',
+    'application/vnd.rar', 'application/x-rar-compressed', 'application/rar', 'application/x-rar',
+    'application/x-7z-compressed', 'application/x-compressed',
+    'application/xml', 'text/xml', 'text/plain',
     'application/octet-stream',  # generic binary (CAD, EDS, etc.)
-    'application/step', 'application/stp',
+    'application/step', 'application/stp', 'model/step', 'application/x-step',
+    'application/dxf', 'application/acad',
     # Executables / installers (allowed for download centre)
-    'application/x-msdownload', 'application/x-msi',
+    'application/x-msdownload', 'application/x-msi', 'application/exe', 'application/x-exe', 'application/x-winexe', 'application/msdos-windows', 'application/x-msdos-program',
 }
 
 ALLOWED_EXTENSIONS = {
@@ -138,8 +140,8 @@ class FileUploadView(APIView):
             )
 
         # ── MIME type check ─────────────────────────────────
-        content_type = uploaded_file.content_type or 'application/octet-stream'
-        if content_type not in ALLOWED_MIME_TYPES:
+        content_type = (uploaded_file.content_type or 'application/octet-stream').lower()
+        if content_type not in ALLOWED_MIME_TYPES and not content_type.startswith('image/'):
             return Response(
                 {"error": f"File type '{content_type}' is not permitted."},
                 status=status.HTTP_400_BAD_REQUEST,
