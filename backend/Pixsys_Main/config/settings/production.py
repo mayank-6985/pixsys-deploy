@@ -42,3 +42,7 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = (
     *default_headers,
 )
+
+# Bypass Nginx/WAF 403 blocks on /media/ by prefixing with /v1/api/
+# so the request is guaranteed to be proxied to Django.
+MEDIA_URL = '/v1/api/media/'
