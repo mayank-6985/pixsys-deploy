@@ -37,11 +37,11 @@ export const useFileUpload = (folderName = "general") => {
       throw new Error(msg);
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      const msg = `File exceeds the maximum allowed size of ${MAX_FILE_SIZE / (1024 * 1024)} MB.`;
-      setError(msg);
-      throw new Error(msg);
-    }
+    // if (file.size > MAX_FILE_SIZE) {
+    //   const msg = `File exceeds the maximum allowed size of ${MAX_FILE_SIZE / (1024 * 1024)} MB.`;
+    //   setError(msg);
+    //   throw new Error(msg);
+    // }
 
     setIsUploading(true);
     setProgress(0);

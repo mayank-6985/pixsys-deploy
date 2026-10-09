@@ -61,7 +61,7 @@ ALLOWED_EXTENSIONS = {
     '.exe', '.msi',
 }
 
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+# MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB (disabled)
 
 
 def _sanitise_folder(folder_name: str) -> str:
@@ -124,11 +124,11 @@ class FileUploadView(APIView):
             )
 
         # ── Size check ──────────────────────────────────────
-        if uploaded_file.size > MAX_FILE_SIZE:
-            return Response(
-                {"error": f"File exceeds maximum allowed size of {MAX_FILE_SIZE // (1024*1024)} MB."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # if uploaded_file.size > MAX_FILE_SIZE:
+        #     return Response(
+        #         {"error": f"File exceeds maximum allowed size of {MAX_FILE_SIZE // (1024*1024)} MB."},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
 
         # ── Extension check ─────────────────────────────────
         _, ext = os.path.splitext(uploaded_file.name)
